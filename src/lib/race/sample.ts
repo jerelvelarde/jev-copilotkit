@@ -12,6 +12,16 @@ import {
 // Wikipedia graph. The UI labels this mode and its timings as sample data.
 const scenarios = [
   {
+    start: "Baseball",
+    target: "Sun",
+    paths: [
+      ["Baseball", "United States", "Earth", "Sun"],
+      ["Baseball", "Sport", "Human", "Earth", "Sun"],
+      ["Baseball", "Bat-and-ball games", "Cricket", "Weather", "Sun"],
+      ["Baseball", "United States", "Geography", "Earth", "Sun"],
+    ],
+  },
+  {
     start: "Coffee",
     target: "Napoleon",
     paths: [
@@ -49,6 +59,25 @@ const scenarios = [
   },
 ];
 const intros: Record<string, string> = {
+  Baseball:
+    "Baseball is a bat-and-ball sport played between two teams of nine players. The teams take turns batting and fielding, scoring runs by advancing around four bases. The sport has a long history in the United States and is played around the world.",
+  "United States":
+    "The United States of America is a country primarily located in North America. Its varied geography spans mountains, plains, deserts, and coastlines. Baseball has long been part of its sporting culture.",
+  Earth:
+    "Earth is the third planet from the Sun and the only astronomical object known to harbor life. Its surface is shaped by oceans and continents, while its atmosphere supports a wide range of climates and ecosystems.",
+  Sun: "The Sun is the star at the center of the Solar System. It is a nearly perfect sphere of hot plasma, heated by nuclear fusion reactions in its core. Its energy is the most important source of light and heat for life on Earth.",
+  Sport:
+    "Sport includes physical activities and games that involve skill, competition, and rules. Individual athletes and teams compete in activities ranging from running and swimming to baseball and cricket.",
+  Human:
+    "Humans are primates characterized by complex language, social organization, and the use of tools. They inhabit environments across Earth and develop diverse cultures, games, and traditions.",
+  "Bat-and-ball games":
+    "Bat-and-ball games are field games played by opposing teams. A player strikes a ball with a bat, while the other team attempts to retrieve it. Baseball and cricket are two widely played examples.",
+  Cricket:
+    "Cricket is a bat-and-ball game played between two teams of eleven players. Matches take place on a field with a central pitch and may be influenced by weather and the condition of the playing surface.",
+  Weather:
+    "Weather describes the state of the atmosphere, including temperature, wind, clouds, and precipitation. Uneven heating of Earth's surface by the Sun helps drive atmospheric movement.",
+  Geography:
+    "Geography studies places, environments, and the relationships between people and their surroundings. Physical geography examines Earth's landforms, atmosphere, and natural processes.",
   Coffee:
     "Coffee is a beverage prepared from roasted coffee beans. Its story connects botany, trade, culture, and the history of empires.",
   "Saint-Domingue":
@@ -71,7 +100,7 @@ export function createSampleDependencies(config: RaceConfig): RaceDependencies {
   );
   if (!scenario)
     throw new Error(
-      "Sample mode supports the three preset challenges. Switch to Live for other articles.",
+      "Sample mode supports the preset challenges. Switch to Live for other articles.",
     );
   const graph = new Map<string, Article>();
   for (const path of scenario.paths)

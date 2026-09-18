@@ -14,7 +14,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Open [localhost:3000](http://localhost:3000). **Sample mode works without keys.** Its routes, article introductions, and delays are authored illustrations—not recorded model runs, verified Wikipedia routes, or benchmark results. Three preset challenges demonstrate the interface. Sample mode never calls an AI provider.
+Open [localhost:3000](http://localhost:3000). **Sample mode works without keys.** Its routes, article introductions, and delays are authored illustrations—not recorded model runs, verified Wikipedia routes, or benchmark results. Four preset challenges demonstrate the interface. Sample mode never calls an AI provider.
 
 ## Enable live Jev
 
@@ -35,6 +35,10 @@ Jev can run alone. The other lanes clearly show that they are unavailable until 
 Set `OPENROUTER_API_KEY` to enable all three LLM lanes through [OpenRouter](https://openrouter.ai). The defaults are `openai/gpt-4.1-mini`, `anthropic/claude-haiku-4.5`, and `anthropic/claude-sonnet-4.6`. Override them using `BASELINE_MODEL_1`, `BASELINE_MODEL_2`, and `BASELINE_MODEL_3`; exact model IDs appear in the interface.
 
 These are configurable baselines, **not the exact benchmark setup in the source video**. Live runs use your provider balance. The app does not estimate costs from missing usage or promise a speed advantage.
+
+## Race arena
+
+The screenshot-inspired dark arena keeps all four racers on screen on desktop. Press **Go!** to start; use **Setup** for the course, Sample/Live mode, and hop limit. The top clock tracks elapsed race time, while the bottom bars compare model time. Each pane retains its article trail and previous decisions after completion. Narrow screens stack the panels.
 
 ## How CopilotKit is used
 

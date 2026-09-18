@@ -100,8 +100,8 @@ export const normalizeTitle = (value: string) => {
 export const articleUrl = (value: string) =>
   `https://en.wikipedia.org/wiki/${encodeURIComponent(value.replaceAll(" ", "_"))}`;
 export const DEFAULT_CONFIG: RaceConfig = {
-  start: "Coffee",
-  target: "Napoleon",
+  start: "Baseball",
+  target: "Sun",
   mode: "sample",
   maxHops: 12,
 };

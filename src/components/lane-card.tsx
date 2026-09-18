@@ -2,19 +2,13 @@
 
 import { useState } from "react";
 import {
-  ArrowDown,
   ArrowUpRight,
-  BookOpen,
   Check,
   ChevronDown,
   ChevronRight,
   CircleDot,
-  Flag,
   LoaderCircle,
-  Route,
-  Sparkles,
   TriangleAlert,
-  Zap,
 } from "lucide-react";
 import { articleUrl, type LaneState, type RaceConfig } from "@/lib/race/types";
 
@@ -24,10 +18,10 @@ export function formatTime(ms: number) {
 }
 
 const statusLabels: Record<LaneState["status"], string> = {
-  ready: "Ready to race",
+  ready: "Ready",
   loading: "Reading article",
   thinking: "Choosing a link",
-  finished: "Destination reached",
+  finished: "Finished",
   exhausted: "Race limit reached",
   error: "Lane failed",
   cancelled: "Stopped",
@@ -43,288 +37,202 @@ export function LaneCard({
   config: RaceConfig;
   place: number | null;
 }) {
-  const unavailable = config.mode === "live" && !lane.available;
+  const sample = config.mode === "sample";
+  const unavailable = !sample && !lane.available;
   const status = unavailable ? "unavailable" : lane.status;
   const active = status === "loading" || status === "thinking";
   const [inspection, setInspection] = useState<{
     startedAt: number | null;
     index: number;
   } | null>(null);
-  const inspectedIndex =
+  const selected =
     inspection && inspection.startedAt === lane.startedAt
       ? Math.min(inspection.index, lane.hops.length - 1)
       : lane.hops.length - 1;
-  const decision = lane.hops[inspectedIndex];
-  const path = lane.path.length > 0 ? lane.path : [config.start];
-  const sample = config.mode === "sample";
-  const hasStarted = lane.startedAt !== null || lane.hops.length > 0;
+  const decision = lane.hops[selected];
 
   return (
     <article
-      className={`lane-card lane-${lane.color} ${unavailable ? "lane-unavailable" : ""} ${status === "finished" ? "lane-finished" : ""}`}
+      className={`arena-lane arena-lane-${lane.id} ${active ? "lane-active" : ""}`}
       aria-label={`${lane.name} race lane`}
     >
-      <div className="lane-topline" />
       <header className="lane-header">
-        <div className="lane-identity">
-          <span className="lane-avatar" aria-hidden="true">
-            {lane.provider === "jev" ? (
-              <Zap size={22} strokeWidth={1.8} />
-            ) : (
-              <Sparkles size={20} strokeWidth={1.7} />
-            )}
-          </span>
-          <div>
-            <div className="lane-title">
-              <h3>{lane.name}</h3>
-              {lane.id === "jev" && <span className="model-tag">System 1</span>}
-            </div>
-            <p className="model-id" title={lane.model}>
-              {lane.model}
-            </p>
-          </div>
-        </div>
-        <span
-          className={`lane-status status-${status}`}
-          aria-label={statusLabels[status]}
-        >
-          {active ? (
-            <LoaderCircle className="spin" size={12} />
-          ) : status === "finished" ? (
-            <Check size={13} />
-          ) : status === "error" ? (
-            <TriangleAlert size={12} />
-          ) : (
-            <span className="status-dot" />
+        <div className="lane-heading">
+          <h2>{lane.name}</h2>
+          {place !== null && (
+            <span className="finish-place">
+              <Check size={11} /> #{place}
+            </span>
           )}
-          <span>{statusLabels[status]}</span>
-        </span>
+        </div>
+        <div className="lane-stats">
+          <span className={`lane-status lane-status-${status}`}>
+            {active ? (
+              <LoaderCircle size={10} className="spin" />
+            ) : status === "error" ? (
+              <TriangleAlert size={10} />
+            ) : (
+              <span className="status-dot" />
+            )}
+            {statusLabels[status]}
+          </span>
+          <span>
+            {lane.hops.length} {lane.hops.length === 1 ? "hop" : "hops"}
+          </span>
+          <span>{formatTime(lane.modelMs)} model</span>
+          <span className="lane-elapsed">
+            {formatTime(lane.elapsedMs)} elapsed
+          </span>
+        </div>
       </header>
 
-      <div className="lane-metrics">
-        <div>
-          <span className="metric-label">
-            Model time{" "}
-            <span
-              title={
-                sample
-                  ? "Scripted illustration; not measured model latency."
-                  : "Total time waiting for this lane's model API requests."
-              }
-              className="metric-hint"
-            >
-              {sample ? "simulated" : "measured"}
-            </span>
-          </span>
-          <strong>
-            {hasStarted ? (
-              formatTime(lane.modelMs)
-            ) : (
-              <span className="metric-empty">—</span>
-            )}
-          </strong>
+      {!lane.current ? (
+        <div className="lane-ready">
+          <h3>{lane.name}</h3>
+          <p>{statusLabels[status]}</p>
+          <span className="lane-model-id">{lane.model}</span>
+          {unavailable && (
+            <p className="lane-empty-note">
+              Connect {lane.provider === "jev" ? "TypeSafe" : "OpenRouter"} in
+              setup.
+            </p>
+          )}
+          {lane.error && (
+            <p className="lane-empty-note" role="alert">
+              {lane.error}
+            </p>
+          )}
         </div>
-        <div>
-          <span className="metric-label">
-            Elapsed{" "}
-            <span
-              title={
-                sample
-                  ? "Scripted illustration; not a benchmark."
-                  : "End-to-end lane time, including model calls and article retrieval."
-              }
-              className="metric-hint"
-            >
-              {sample ? "simulated" : "total"}
-            </span>
-          </span>
-          <strong>
-            {hasStarted ? (
-              formatTime(lane.elapsedMs)
-            ) : (
-              <span className="metric-empty">—</span>
-            )}
-          </strong>
-        </div>
-        <div>
-          <span className="metric-label">Hops</span>
-          <strong>
-            {lane.hops.length}
-            <small> / {config.maxHops}</small>
-          </strong>
-        </div>
-      </div>
-
-      <div className={`article-preview ${!lane.current ? "article-idle" : ""}`}>
-        <div className="article-kicker">
-          <span>
-            <BookOpen size={13} />
-            {lane.current ? "Current article" : "Starting article"}
-          </span>
-          {lane.current && (
+      ) : (
+        <div className="lane-scroll">
+          <div className="article-toolbar">
+            <span>{sample ? "Sample article" : "Wikipedia"}</span>
             <a
               href={lane.current.url}
               target="_blank"
               rel="noreferrer"
               aria-label={`Open ${lane.current.title} on Wikipedia`}
             >
-              <ArrowUpRight size={16} />
+              Open article <ArrowUpRight size={12} />
             </a>
-          )}
-        </div>
-        <h4>{lane.current?.title || config.start}</h4>
-        <p>
-          {lane.current?.extract ||
-            (unavailable
-              ? `Connect ${lane.provider === "jev" ? "Jev" : "OpenRouter"} to include this model in a live race.`
-              : "Every destination begins with a single link. Start the race to see where this model goes next.")}
-        </p>
-        {status === "finished" && (
-          <div className="arrival">
-            <Flag size={13} />
-            <span>Arrived at {lane.current?.title || config.target}</span>
-            {place !== null && <strong>#{place}</strong>}
           </div>
-        )}
-        {lane.error && (
-          <p className="lane-error" role="alert">
-            {lane.error}
-          </p>
-        )}
-      </div>
-
-      <div className="path-section">
-        <div className="path-label">
-          <Route size={13} /> Article trail
-        </div>
-        <ol className="article-trail">
-          {path.map((title, index) => (
-            <li key={`${index}-${title}`}>
-              {index > 0 && <ChevronRight size={11} aria-hidden="true" />}
-              <a
-                href={articleUrl(title)}
-                target="_blank"
-                rel="noreferrer"
-                className={index === path.length - 1 ? "trail-current" : ""}
-              >
-                {title}
-              </a>
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      {decision ? (
-        <details className="decision-details">
-          <summary>
-            <span>
-              <CircleDot size={14} />
-              Decision log{" "}
-              <span className="decision-count">#{lane.hops.length}</span>
-            </span>
-            <ChevronDown size={15} />
-          </summary>
-          <div className="decision-body">
-            <label className="decision-meta">
-              Inspect move
-              <select
-                aria-label={`${lane.name} decision to inspect`}
-                value={
-                  inspection && inspection.startedAt === lane.startedAt
-                    ? inspectedIndex
-                    : "latest"
-                }
-                onChange={(event) =>
-                  setInspection(
-                    event.target.value === "latest"
-                      ? null
-                      : {
-                          startedAt: lane.startedAt,
-                          index: Number(event.target.value),
-                        },
-                  )
-                }
-              >
-                <option value="latest">Latest move</option>
-                {lane.hops.map((hop, index) => (
-                  <option key={index} value={index}>
-                    #{index + 1} · {hop.to}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="decision-route">
-              <span>{decision.from}</span>
-              <ArrowDown size={13} />
-              <strong>{decision.to}</strong>
-            </div>
-            <div className="decision-meta">
-              <span>{decision.candidates} available links</span>
-              <span>
-                {decision.method === "direct"
-                  ? "Direct target link"
-                  : decision.method === "sample"
-                    ? "Scripted choice"
-                    : decision.method === "rank+choice"
-                      ? "Rank + choice"
-                      : "Model choice"}
-              </span>
-            </div>
-            {decision.choices.length > 0 ? (
-              <>
-                <p className="probability-label">
-                  {sample
-                    ? "Illustrative choice weights"
-                    : lane.provider === "jev"
-                      ? "Returned choice probabilities"
-                      : "Returned choice scores"}
-                </p>
-                <div className="choice-list">
-                  {decision.choices.slice(0, 6).map((choice) => (
-                    <div className="choice-row" key={choice.title}>
-                      <div>
-                        <span>{choice.title}</span>
-                        <span>{(choice.probability * 100).toFixed(1)}%</span>
-                      </div>
-                      <span className="probability-track">
-                        <span
-                          style={{
-                            width: `${Math.max(0, Math.min(100, choice.probability * 100))}%`,
-                          }}
-                        />
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="decision-note">
-                {decision.method === "direct"
-                  ? "The destination is linked from this article. No model call was needed."
-                  : "This provider did not return a probability distribution."}
-              </p>
-            )}
-            <p className="decision-note">
-              {decision.modelCalls} model{" "}
-              {decision.modelCalls === 1 ? "call" : "calls"} ·{" "}
-              {formatTime(decision.modelMs)}
-              {decision.inputTokens !== null
-                ? ` · ${decision.inputTokens.toLocaleString()} input tokens`
-                : ""}
-              {sample ? " · simulated" : ""}
+          <div className="lane-article">
+            <h3>{lane.current.title}</h3>
+            <p>{lane.current.extract}</p>
+          </div>
+          {lane.error && (
+            <p className="lane-error" role="alert">
+              {lane.error}
             </p>
-          </div>
-        </details>
-      ) : (
-        <div className="decision-placeholder">
-          <CircleDot size={14} />
-          <span>
-            {unavailable
-              ? "Provider not configured"
-              : active
-                ? "Waiting for the first decision…"
-                : "Decisions appear here as the race unfolds"}
-          </span>
+          )}
+          <ol className="lane-trail" aria-label="Article trail">
+            {lane.path.map((title, index) => (
+              <li key={`${index}-${title}`}>
+                {index > 0 && <ChevronRight size={10} aria-hidden="true" />}
+                <a
+                  href={articleUrl(title)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={
+                    index === lane.path.length - 1 ? "trail-current" : ""
+                  }
+                >
+                  {title}
+                </a>
+              </li>
+            ))}
+          </ol>
+          {decision && (
+            <details className="decision-details">
+              <summary>
+                <span>
+                  <CircleDot size={12} /> Decision log{" "}
+                  <span className="decision-count">{lane.hops.length}</span>
+                </span>
+                <ChevronDown size={13} />
+              </summary>
+              <div className="decision-body">
+                <label className="decision-select">
+                  Inspect move
+                  <select
+                    aria-label={`${lane.name} decision to inspect`}
+                    value={
+                      inspection && inspection.startedAt === lane.startedAt
+                        ? selected
+                        : "latest"
+                    }
+                    onChange={(event) =>
+                      setInspection(
+                        event.target.value === "latest"
+                          ? null
+                          : {
+                              startedAt: lane.startedAt,
+                              index: Number(event.target.value),
+                            },
+                      )
+                    }
+                  >
+                    <option value="latest">Latest move</option>
+                    {lane.hops.map((hop, index) => (
+                      <option key={index} value={index}>
+                        #{index + 1} · {hop.to}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="decision-route">
+                  <span>{decision.from}</span>
+                  <ChevronRight size={12} />
+                  <strong>{decision.to}</strong>
+                </div>
+                <p className="decision-meta">
+                  {decision.candidates} available links ·{" "}
+                  {decision.method === "direct"
+                    ? "Direct target link"
+                    : decision.method === "sample"
+                      ? "Scripted choice"
+                      : decision.method === "rank+choice"
+                        ? "Rank + choice"
+                        : "Model choice"}
+                </p>
+                {decision.choices.length > 0 ? (
+                  <div className="choice-list">
+                    <p>Returned choice probabilities</p>
+                    {decision.choices.map((choice) => (
+                      <div className="choice-row" key={choice.title}>
+                        <div>
+                          <span>{choice.title}</span>
+                          <span>{(choice.probability * 100).toFixed(1)}%</span>
+                        </div>
+                        <span className="probability-track">
+                          <span
+                            style={{ width: `${choice.probability * 100}%` }}
+                          />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="decision-note">
+                    {decision.method === "direct"
+                      ? "The target is linked here. No model call was needed."
+                      : sample
+                        ? "Scripted sample choice; no model was called."
+                        : "This provider did not return a probability distribution."}
+                  </p>
+                )}
+                <p className="decision-note">
+                  {decision.modelCalls} model{" "}
+                  {decision.modelCalls === 1 ? "call" : "calls"} ·{" "}
+                  {formatTime(decision.modelMs)}
+                  {decision.inputTokens !== null
+                    ? ` · ${decision.inputTokens.toLocaleString()} input tokens`
+                    : ""}
+                  {sample ? " · simulated" : ""}
+                </p>
+              </div>
+            </details>
+          )}
         </div>
       )}
     </article>

@@ -42,9 +42,10 @@ describe("CopilotKit race agent", () => {
     expect(state.config.mode).toBe("sample");
     expect(state.lanes.every((l) => l.status === "finished")).toBe(true);
     expect(state.lanes[0].path).toEqual([
-      "Coffee",
-      "Saint-Domingue",
-      "Napoleon",
+      "Baseball",
+      "United States",
+      "Earth",
+      "Sun",
     ]);
   }, 10_000);
   it("reports invalid input as a run error", async () => {
