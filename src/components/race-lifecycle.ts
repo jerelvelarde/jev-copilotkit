@@ -1,5 +1,6 @@
 import type { AbstractAgent } from "@ag-ui/client";
 import type { RaceState } from "../lib/race/types";
+import { runWithAgentLifecycle } from "./agent-run-lifecycle";
 
 const activeLaneStatuses = new Set(["ready", "loading", "thinking"]);
 
@@ -70,44 +71,22 @@ export async function runWithRaceLifecycle({
   onError,
   onFallback,
 }: RunLifecycleOptions): Promise<void> {
-  let failure: string | null = null;
   const currentState = () =>
     isRaceState(agent.state) && agent.state.runId === initialState.runId
       ? agent.state
       : initialState;
-  const fail = (message: string) => {
-    if (isCancelled()) return;
-    failure ??= message;
-    onError(failure);
-    onFallback(interruptRace(currentState(), failure));
-  };
-  const subscription = agent.subscribe({
-    onRunErrorEvent: ({ event, input }) => {
-      if (input.runId === initialState.runId) fail(event.message);
-    },
-    onRunFailed: ({ error, input }) => {
-      if (input.runId === initialState.runId) fail(error.message);
-    },
+  return runWithAgentLifecycle({
+    agent,
+    runId: initialState.runId,
+    currentState,
+    isTerminal: isTerminalRace,
+    interrupt: interruptRace,
+    run,
+    isCancelled,
+    onError,
+    onFallback,
+    failureMessage: "The race could not finish. Please try again.",
+    incompleteMessage:
+      "The race connection ended before a final result arrived. Please try again.",
   });
-
-  try {
-    await run();
-  } catch (cause) {
-    fail(
-      cause instanceof Error
-        ? cause.message
-        : "The race could not finish. Please try again.",
-    );
-  } finally {
-    subscription.unsubscribe();
-    const current = currentState();
-    if (!isTerminalRace(current)) {
-      if (isCancelled()) onFallback(interruptRace(current));
-      else
-        fail(
-          failure ??
-            "The race connection ended before a final result arrived. Please try again.",
-        );
-    }
-  }
 }

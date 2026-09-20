@@ -1,3 +1,4 @@
+import { abortable } from "../cancellation";
 import {
   initialRace,
   normalizeTitle,
@@ -9,21 +10,6 @@ import {
   type RaceDependencies,
   type RaceState,
 } from "./types";
-
-/** Bound even injected providers that fail to observe cancellation. */
-export function abortable<T>(
-  work: Promise<T>,
-  signal: AbortSignal,
-): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const abort = () => reject(signal.reason);
-    signal.addEventListener("abort", abort, { once: true });
-    work
-      .then(resolve, reject)
-      .finally(() => signal.removeEventListener("abort", abort));
-    if (signal.aborted) abort();
-  });
-}
 
 export async function runRace(
   configInput: RaceConfig,

@@ -1,8 +1,10 @@
-# Wiki race · CopilotKit × Jev
+# Agent arenas · CopilotKit × Jev
 
 A side-by-side Wikipedia link race inspired by the [Wikiracing segment in Matthew Berman's video](https://www.youtube.com/watch?v=2z-7pIj57f8&t=145s) and [TypeSafe's original demonstration](https://typesafe.ai/blog/introducing-system-one-models-and-jev).
 
 Choose a starting article and a destination. Jev and optional comparison models choose links, and CopilotKit streams their paths into a live race interface.
+
+A second demo, the **[Tool-call arena](http://localhost:3000/tool-bench)**, compares tool selection, argument accuracy, and latency on identical support requests. Both demos use the same configured providers and the same dark, four-pane arena layout.
 
 ## Run locally
 
@@ -44,7 +46,7 @@ The screenshot-inspired dark arena keeps all four racers on screen on desktop. P
 
 The frontend uses `CopilotKitProvider`, `useAgent`, and `useCopilotKit` from the published `@copilotkit/react-core/v2` entry point. Race controls invoke `copilotkit.runAgent`, and the entire board renders the agent's shared state. Stop uses `copilotkit.stopAgent`.
 
-The server registers `WikiRaceAgent`, an AG-UI `AbstractAgent`, with `CopilotRuntime`. It emits `RUN_STARTED`, successive `STATE_SNAPSHOT` events, and `RUN_FINISHED` or `RUN_ERROR`. No chat LLM is needed to control the race, and there is no separate custom SSE client behind the UI.
+The server registers `WikiRaceAgent` and `ToolBenchAgent`, both AG-UI `AbstractAgent` implementations, with `CopilotRuntime`. They emit `RUN_STARTED`, successive `STATE_SNAPSHOT` events, and `RUN_FINISHED` or `RUN_ERROR`. No chat LLM is needed to control the arenas, and there is no separate custom SSE client behind the UI.
 
 Main files:
 
@@ -53,6 +55,23 @@ Main files:
 - [Model adapters](src/lib/race/providers.ts): Jev's typed decisions and optional OpenRouter responses.
 - [CopilotKit agent](src/lib/race/agent.ts): engine-to-AG-UI connection.
 - [Sample environment](src/lib/race/sample.ts): clearly synthetic, credential-free demonstration.
+- [Tool benchmark engine](src/lib/tool-bench/engine.ts): case ordering, exact scoring, isolated lanes, cancellation, and deadlines.
+- [Tool benchmark adapters](src/lib/tool-bench/providers.ts): typed Jev questions and native OpenRouter function calls.
+- [Labeled support cases](src/lib/tool-bench/cases.ts): the versioned `support-v1` dataset.
+
+## Tool-call arena
+
+Open `/tool-bench`, choose 6 or 12 support requests, and press **Run benchmark**. Every lane receives the same cases in the same order, with one request in flight per lane. Lanes advance independently. Inspect any completed case to compare the returned tool and arguments against its labeled answer. The six tools cover order lookup, shipment tracking, refunds, subscription cancellation, support tickets, and human escalation. These are simulated operations: no refunds, cancellations, or external actions are executed.
+
+Jev selects the tool and candidate-bound argument fields in one request using typed Choice questions. The comparison models use native function calling through OpenRouter. They receive the same tool descriptions, entity candidates, and support request; labeled answers are excluded from every provider input. Jev's request asks for all fields before retaining the chosen tool's required fields, while LLMs return the chosen function's arguments. This compares two practical integration approaches, not identical model protocols.
+
+- **Exact accuracy** requires both the correct tool and exactly the required argument keys and values. Each case also shows separate tool and argument checks. Extra, missing, or incorrect arguments fail exact scoring.
+- **p50 / p95 latency** uses nearest-rank percentiles of measured per-case provider time. It includes the request and response processing, not a provider's internal inference duration. Token counts and confidence appear only when supplied by the provider.
+- **Correct calls / second** divides the number of exactly correct calls by the lane's total elapsed time. A faster wrong answer does not earn successful throughput.
+- Malformed outputs count as incorrect cases. Transport and authentication errors stop only the affected lane and remain visible. Runs have a 90-second overall deadline and can be stopped.
+- **Sample** mode uses authored correct answers and identical simulated delays for all lanes. It demonstrates the UI and is never presented as measured model performance. A live Jev comparison appears only after Jev and at least one baseline finish the same suite, with both latency and accuracy disclosed.
+
+This is a small, curated application benchmark. It is useful for inspecting behavior and recording a demo, not for claiming general model rankings.
 
 ## Race rules and measurement
 
@@ -76,7 +95,7 @@ pnpm format:check
 pnpm build
 ```
 
-Tests cover legal and invalid moves, redirects, cycles, hop/deadline limits, cancellation, lane isolation, Wikipedia pagination, provider schema validation, Jev's two-stage selection, and an entire sample race through the AG-UI agent.
+Tests cover legal and invalid moves, redirects, cycles, hop/deadline limits, cancellation, lane isolation, Wikipedia pagination, provider schema validation, Jev's two-stage selection, and an entire sample race through the AG-UI agent. Tool benchmark tests cover exact argument scoring, label exclusion, native-call contracts, provider timeouts, equal sample delays, cancellation through the actual agent runner, metrics, comparison eligibility, and stopped-result inspection.
 
 This is a local prototype, served on `127.0.0.1` by default. Before public hosting, add authentication, per-user quotas, persistence, and a suitable deployment timeout. Do not expose a credential-backed demo endpoint without access controls.
 

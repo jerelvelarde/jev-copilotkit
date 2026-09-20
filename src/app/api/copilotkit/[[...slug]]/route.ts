@@ -5,11 +5,15 @@ import {
 } from "@copilotkit/runtime/v2";
 import { handle } from "hono/vercel";
 import { WikiRaceAgent } from "@/lib/race/agent";
+import { ToolBenchAgent } from "@/lib/tool-bench/agent";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 const copilotRuntime = new CopilotRuntime({
-  agents: { wiki_race: new WikiRaceAgent() },
+  agents: {
+    wiki_race: new WikiRaceAgent(),
+    tool_bench: new ToolBenchAgent(),
+  },
   runner: new InMemoryAgentRunner(),
 });
 const app = createCopilotEndpoint({

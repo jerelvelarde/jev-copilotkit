@@ -234,6 +234,14 @@ select {
 .arena-race-status {
   text-align: right;
 }
+.demo-link {
+  color: var(--jev);
+  white-space: nowrap;
+  text-underline-offset: 4px;
+}
+.demo-link:hover {
+  text-decoration: underline;
+}
 .arena-error {
   display: flex;
   align-items: center;

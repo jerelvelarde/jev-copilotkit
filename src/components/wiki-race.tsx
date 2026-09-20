@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   CopilotKitProvider,
@@ -260,6 +261,11 @@ function RaceBoard({
                 ? "Race stopped · paths preserved"
                 : "Four racers. One destination."}
         </span>
+        {!running && (
+          <Link className="demo-link" href="/tool-bench">
+            Tool-call arena ↗
+          </Link>
+        )}
       </div>
 
       {(error || connectionError) && (
