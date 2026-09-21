@@ -113,6 +113,12 @@ export type ArenaLaneState = LaneDefinition & {
   events: ArenaEvent[];
   error: string | null;
 };
+/** Names the required server variable without ever revealing its value. */
+export function missingKeyMessage(lane: LaneDefinition) {
+  return lane.provider === "jev"
+    ? "Configure TYPESAFE_API_KEY to enable live Jev."
+    : "Configure OPENROUTER_API_KEY to enable this comparison model.";
+}
 export function initialLaneState(lane: LaneDefinition): ArenaLaneState {
   return {
     ...lane,

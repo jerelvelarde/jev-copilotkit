@@ -6,6 +6,7 @@ import { BenchOutputError } from "./providers";
 import { scoreCall } from "./scoring";
 import {
   initialLaneState,
+  missingKeyMessage,
   type ArenaConfig,
   type ArenaEvent,
   type ArenaLaneState,
@@ -18,11 +19,6 @@ export type LaneDependencies = {
   now?: () => number;
   timeoutMs?: number;
 };
-
-const missingKeyMessage = (lane: LaneDefinition) =>
-  lane.provider === "jev"
-    ? "Configure TYPESAFE_API_KEY to enable live Jev."
-    : "Configure OPENROUTER_API_KEY to enable this comparison model.";
 
 /**
  * Runs one provider decision and one local tool execution for a single case,
