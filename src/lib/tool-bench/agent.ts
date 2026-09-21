@@ -2,28 +2,40 @@ import { AbstractAgent } from "@ag-ui/client";
 import { EventType, type BaseEvent, type RunAgentInput } from "@ag-ui/core";
 import { Observable } from "rxjs";
 import { z } from "zod";
-import { getLaneDefinitions } from "../race/providers";
-import { BENCH_CASES } from "./cases";
-import { runBenchmark } from "./engine";
-import { liveProviders } from "./providers";
-import { createSampleDependencies } from "./sample";
-import { benchConfigSchema } from "./types";
+import type { LaneDefinition } from "../race/types";
+import { executeToolCall } from "./executor";
+import { runArenaLane } from "./lane-engine";
+import { createJevProvider, createOpenRouterProvider } from "./providers";
+import { createSampleProvider } from "./sample";
+import { arenaConfigSchema, type ArenaConfig } from "./types";
 
-export class ToolBenchAgent extends AbstractAgent {
-  private benchController = new AbortController();
-  constructor() {
+const runPropsSchema = z.object({
+  config: arenaConfigSchema,
+  runId: z.string().uuid(),
+});
+
+/** Every lane keeps its own keys server-side; nothing here reaches the client. */
+function laneProvider(lane: LaneDefinition, config: ArenaConfig) {
+  if (config.mode === "sample") return createSampleProvider(lane.id);
+  return lane.provider === "jev"
+    ? createJevProvider(process.env.TYPESAFE_API_KEY ?? "", lane.model)
+    : createOpenRouterProvider(process.env.OPENROUTER_API_KEY ?? "", lane.model);
+}
+
+export class ToolArenaAgent extends AbstractAgent {
+  private laneController = new AbortController();
+  constructor(private readonly lane: LaneDefinition) {
     super({
-      agentId: "tool_bench",
-      description:
-        "Benchmark Jev and comparison models on a labeled suite of simulated support tool calls.",
+      agentId: `tool_bench_${lane.id}`,
+      description: `${lane.name} tool-calling arena lane`,
     });
   }
   override abortRun(): void {
-    this.benchController.abort();
+    this.laneController.abort();
   }
   run(input: RunAgentInput): Observable<BaseEvent> {
     return new Observable((subscriber) => {
-      const controller = this.benchController;
+      const controller = this.laneController;
       const emit = (event: BaseEvent) => {
         if (!subscriber.closed) subscriber.next(event);
       };
@@ -34,18 +46,17 @@ export class ToolBenchAgent extends AbstractAgent {
       });
       void (async () => {
         try {
-          const { config } = z
-            .object({ config: benchConfigSchema })
-            .parse(input.forwardedProps);
-          const lanes = getLaneDefinitions();
-          const dependencies =
-            config.mode === "sample"
-              ? createSampleDependencies(config, lanes)
-              : { cases: BENCH_CASES, providers: liveProviders(lanes) };
-          await runBenchmark(
+          const { config, runId } = runPropsSchema.parse(input.forwardedProps);
+          // Provider, tool and stop outcomes are lane state, not run errors:
+          // one failing agent must never end the other three.
+          await runArenaLane(
+            this.lane,
             config,
-            lanes,
-            dependencies,
+            runId,
+            {
+              provider: laneProvider(this.lane, config),
+              execute: executeToolCall,
+            },
             controller.signal,
             (snapshot) =>
               emit({
@@ -63,10 +74,10 @@ export class ToolBenchAgent extends AbstractAgent {
             type: EventType.RUN_ERROR,
             message:
               error instanceof z.ZodError
-                ? "Invalid benchmark configuration. Choose sample or live mode and 1 to 12 cases."
+                ? "Invalid arena run specification. Choose sample or live mode and one benchmark case."
                 : error instanceof Error
                   ? error.message
-                  : "The benchmark could not start.",
+                  : "The arena lane could not start.",
           });
         } finally {
           subscriber.complete();
@@ -74,12 +85,12 @@ export class ToolBenchAgent extends AbstractAgent {
       })();
       return () => {
         controller.abort();
-        if (this.benchController === controller)
-          this.benchController = new AbortController();
+        if (this.laneController === controller)
+          this.laneController = new AbortController();
       };
     });
   }
-  override clone(): ToolBenchAgent {
-    return new ToolBenchAgent();
+  override clone(): ToolArenaAgent {
+    return new ToolArenaAgent(this.lane);
   }
 }

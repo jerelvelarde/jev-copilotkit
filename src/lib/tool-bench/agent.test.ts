@@ -2,65 +2,106 @@ import { describe, expect, it } from "vitest";
 import { lastValueFrom, toArray, tap } from "rxjs";
 import { EventType, type RunAgentInput } from "@ag-ui/core";
 import { InMemoryAgentRunner } from "@copilotkit/runtime/v2";
-import { ToolBenchAgent } from "./agent";
+import { DEFAULT_LANES, type LaneDefinition } from "../race/types";
+import { BENCH_CASES } from "./cases";
+import { ToolArenaAgent } from "./agent";
+import type { ArenaLaneState } from "./types";
+
+const lane: LaneDefinition = { ...DEFAULT_LANES[0], available: false };
+const runId = "8a1f0f1a-0d2d-4a1f-9c4a-6b8f0f2f1c11";
 const input: RunAgentInput = {
-  threadId: "bench-thread",
-  runId: "bench-run",
+  threadId: "arena-thread",
+  runId,
   state: {},
   messages: [],
   tools: [],
   context: [],
-  forwardedProps: { config: { mode: "sample", caseCount: 1 } },
+  forwardedProps: {
+    config: { mode: "sample", caseId: BENCH_CASES[0].id },
+    runId,
+  },
 };
-const collect = (agent = new ToolBenchAgent(), run = input) =>
+const collect = (agent = new ToolArenaAgent(lane), run = input) =>
   lastValueFrom(agent.run(run).pipe(toArray()));
-describe("tool benchmark AG-UI lifecycle", () => {
-  it("uses caller run identity in every snapshot and ordered lifecycle", async () => {
+const snapshots = (events: { type: EventType; snapshot?: unknown }[]) =>
+  events
+    .filter((event) => event.type === EventType.STATE_SNAPSHOT)
+    .map((event) => event.snapshot as ArenaLaneState);
+
+describe("tool arena lane AG-UI lifecycle", () => {
+  it("identifies one lane agent per provider definition", () => {
+    expect(new ToolArenaAgent(lane).agentId).toBe("tool_bench_jev");
+    expect(
+      DEFAULT_LANES.map((item) => new ToolArenaAgent(item).agentId),
+    ).toEqual([
+      "tool_bench_jev",
+      "tool_bench_gpt",
+      "tool_bench_haiku",
+      "tool_bench_sonnet",
+    ]);
+    const agent = new ToolArenaAgent(lane);
+    expect(agent.clone()).toBeInstanceOf(ToolArenaAgent);
+    expect(agent.clone()).not.toBe(agent);
+    expect(agent.clone().agentId).toBe(agent.agentId);
+  });
+
+  it("streams progressive snapshots between RUN_STARTED and RUN_FINISHED", async () => {
     const events = await collect();
     expect(events[0].type).toBe(EventType.RUN_STARTED);
     expect(events.at(-1)?.type).toBe(EventType.RUN_FINISHED);
-    const snapshots = events.filter((e) => e.type === EventType.STATE_SNAPSHOT);
-    for (const event of snapshots)
-      expect(event.snapshot).toMatchObject({ runId: input.runId });
-    expect(snapshots.at(-1)?.snapshot).toMatchObject({
+    const states = snapshots(events);
+    expect(states.length).toBeGreaterThan(1);
+    for (const state of states) expect(state.runId).toBe(runId);
+    expect(states.map((state) => state.events.length)).toEqual([
+      0, 1, 2, 3, 4,
+    ]);
+    expect(states.at(-1)).toMatchObject({
       status: "complete",
-      totalCases: 1,
+      caseId: BENCH_CASES[0].id,
+      score: { correct: true },
     });
+    expect(states.at(-1)?.execution?.result).toMatchObject({ kind: "order" });
   });
-  it("reports invalid config", async () => {
-    const events = await collect(new ToolBenchAgent(), {
+
+  it("reports invalid forwarded properties as a run error", async () => {
+    const events = await collect(new ToolArenaAgent(lane), {
       ...input,
-      forwardedProps: { config: { mode: "sample", caseCount: 13 } },
+      forwardedProps: { config: { mode: "sample" }, runId },
     });
-    expect(events.map((e) => e.type)).toEqual([
+    expect(events.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.RUN_ERROR,
     ]);
   });
-  it("honors stop before subscription and resets for reuse; clones are independent", async () => {
-    const agent = new ToolBenchAgent();
-    agent.abortRun();
-    const stopped = await collect(agent);
-    expect(
-      stopped.filter((e) => e.type === EventType.STATE_SNAPSHOT).at(-1)
-        ?.snapshot,
-    ).toMatchObject({ status: "cancelled" });
-    const again = await collect(agent);
-    expect(
-      again.filter((e) => e.type === EventType.STATE_SNAPSHOT).at(-1)?.snapshot,
-    ).toMatchObject({ status: "complete" });
-    expect(agent.clone()).toBeInstanceOf(ToolBenchAgent);
-    expect(agent.clone()).not.toBe(agent);
+
+  it("ends a live lane without keys as unavailable, not as a run error", async () => {
+    const events = await collect(new ToolArenaAgent(lane), {
+      ...input,
+      forwardedProps: {
+        config: { mode: "live", caseId: BENCH_CASES[0].id },
+        runId,
+      },
+    });
+    expect(events.at(-1)?.type).toBe(EventType.RUN_FINISHED);
+    expect(snapshots(events).at(-1)).toMatchObject({ status: "unavailable" });
   });
+
+  it("honors a stop before subscription and resets for reuse", async () => {
+    const agent = new ToolArenaAgent(lane);
+    agent.abortRun();
+    expect(snapshots(await collect(agent)).at(-1)).toMatchObject({
+      status: "cancelled",
+    });
+    expect(snapshots(await collect(agent)).at(-1)).toMatchObject({
+      status: "complete",
+    });
+  });
+
   it("stops through the installed CopilotKit runner", async () => {
     const runner = new InMemoryAgentRunner();
-    const agent = new ToolBenchAgent();
+    const agent = new ToolArenaAgent(lane);
+    const run = { ...input, threadId: crypto.randomUUID() };
     let stopping = false;
-    const run = {
-      ...input,
-      threadId: crypto.randomUUID(),
-      runId: crypto.randomUUID(),
-    };
     const events = await lastValueFrom(
       runner.run({ threadId: run.threadId, agent, input: run }).pipe(
         tap((event) => {
@@ -73,10 +114,10 @@ describe("tool benchmark AG-UI lifecycle", () => {
       ),
     );
     expect(events.at(-1)?.type).toBe(EventType.RUN_FINISHED);
-    expect(
-      events.filter((e) => e.type === EventType.STATE_SNAPSHOT).at(-1)
-        ?.snapshot,
-    ).toMatchObject({ status: "cancelled", runId: run.runId });
+    expect(snapshots(events).at(-1)).toMatchObject({
+      status: "cancelled",
+      runId,
+    });
     expect(agent.isRunning).toBe(false);
   });
 });
