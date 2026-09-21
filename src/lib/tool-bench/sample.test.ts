@@ -1,42 +1,59 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_LANES } from "../race/types";
 import { BENCH_CASES, toCaseInput } from "./cases";
-import { createSampleDependencies } from "./sample";
+import { createSampleProvider, sampleRankedChoices } from "./sample";
 import type { BenchDecision } from "./types";
 
 afterEach(() => vi.useRealTimers());
-describe("explicitly simulated benchmark providers", () => {
-  it("gives every lane the same 650ms delay and correct authored answers", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
-    const dependencies = createSampleDependencies({
-      mode: "sample",
-      caseCount: 1,
-    });
-    const results: BenchDecision[] = [];
+describe("explicitly simulated arena providers", () => {
+  it("staggers the authored answer by lane so the race is visible", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const results: { id: string; decision: BenchDecision }[] = [];
     const pending = Promise.all(
-      Object.values(dependencies.providers).map((provider) =>
-        provider(
+      DEFAULT_LANES.map((lane) =>
+        createSampleProvider(lane.id)(
           toCaseInput(BENCH_CASES[0]),
           new AbortController().signal,
-        ).then((result) => results.push(result)),
+        ).then((decision) => results.push({ id: lane.id, decision })),
       ),
     );
-    await vi.advanceTimersByTimeAsync(649);
+    await vi.advanceTimersByTimeAsync(349);
     expect(results).toHaveLength(0);
     await vi.advanceTimersByTimeAsync(1);
+    expect(results.map((entry) => entry.id)).toEqual(["jev"]);
+    await vi.advanceTimersByTimeAsync(420);
     await pending;
-    expect(results).toHaveLength(4);
-    for (const result of results)
-      expect(result).toMatchObject({
+    expect(results.map((entry) => entry.decision.modelMs)).toEqual([
+      350, 490, 630, 770,
+    ]);
+    for (const { decision } of results)
+      expect(decision).toMatchObject({
         ...BENCH_CASES[0].expected,
-        modelMs: 650,
         inputTokens: null,
         outputTokens: null,
-        confidence: null,
       });
   });
+
+  it("returns ranked choices and confidence only for the Jev lane", async () => {
+    const jev = await createSampleProvider("jev")(
+      toCaseInput(BENCH_CASES[0]),
+      new AbortController().signal,
+    );
+    expect(jev.confidence).toBe(0.94);
+    expect(jev.choices).toEqual(
+      sampleRankedChoices(BENCH_CASES[0].expected.tool),
+    );
+    expect(jev.choices[0].tool).toBe(BENCH_CASES[0].expected.tool);
+    const gpt = await createSampleProvider("gpt")(
+      toCaseInput(BENCH_CASES[0]),
+      new AbortController().signal,
+    );
+    expect(gpt.confidence).toBeNull();
+    expect(gpt.choices).toEqual([]);
+  });
+
   it("stops promptly and never falls back for unknown cases", async () => {
-    const provider = createSampleDependencies({ mode: "sample", caseCount: 1 })
-      .providers.jev;
+    const provider = createSampleProvider("jev");
     const controller = new AbortController();
     const pending = provider(toCaseInput(BENCH_CASES[0]), controller.signal);
     controller.abort(new Error("Stopped"));
