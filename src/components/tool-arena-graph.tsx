@@ -46,7 +46,10 @@ export function ToolArenaGraph({
               <li key={lane.id} className={`tb-trace-row tb-color-${lane.id}`}>
                 <span className="tb-trace-label">{lane.name}</span>
                 <ol className="tb-trace-track">
-                  <li className="tb-trace-node tb-trace-prompt" style={{ left: 0 }}>
+                  <li
+                    className="tb-trace-node tb-trace-prompt"
+                    style={{ left: 0 }}
+                  >
                     <span>Prompt</span>
                     <small>shared request</small>
                   </li>
@@ -77,9 +80,7 @@ export function ToolArenaGraph({
                 <span className="tb-trace-total">
                   {benchTime(lane.timings.totalMs)}
                 </span>
-                {lane.error && (
-                  <p className="tb-trace-error">{lane.error}</p>
-                )}
+                {lane.error && <p className="tb-trace-message">{lane.error}</p>}
               </li>
             );
           })}

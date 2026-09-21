@@ -9,6 +9,7 @@ import { DEFAULT_LANES } from "../lib/race/types";
 import { initialLaneState, type ArenaLaneState } from "../lib/tool-bench/types";
 import { ToolArenaGraph } from "./tool-arena-graph";
 import { ToolArenaLane } from "./tool-arena-lane";
+import { summarizeArena, ToolArenaSummary } from "./tool-arena-summary";
 import {
   arenaClockMs,
   buildTrace,
@@ -16,6 +17,7 @@ import {
 } from "./tool-bench-metrics";
 import {
   createArenaRun,
+  idleArenaLane,
   interruptLane,
   isArenaComplete,
   isTerminalLane,
@@ -100,6 +102,19 @@ describe("arena run specification", () => {
     expect(() => createArenaRun("sample", "", definitions)).toThrow();
   });
 
+  it("never asks a sample lane for a key it does not need before the race", () => {
+    const unconfigured = withAgentIds([
+      { ...DEFAULT_LANES[0], available: false },
+    ])[0];
+    expect(idleArenaLane(unconfigured, true)).toMatchObject({
+      status: "idle",
+      error: null,
+    });
+    const live = idleArenaLane(unconfigured, false);
+    expect(live.status).toBe("unavailable");
+    expect(live.error).toBeTruthy();
+  });
+
   it("carries the selected prompt so lanes render before the first snapshot", () => {
     expect(
       createArenaRun("sample", "order-details", definitions, {
@@ -166,12 +181,19 @@ describe("arena completion and interruption", () => {
 
 describe("client UI commit measurement", () => {
   const completed = state("complete", {
-    execution: { tool: "lookup_order", arguments: {}, result: { kind: "order" } },
+    execution: {
+      tool: "lookup_order",
+      arguments: {},
+      result: { kind: "order" },
+    },
     timings: { decisionMs: 200, toolMs: 40, renderMs: 0, totalMs: 240 },
   });
 
   it("merges the client measurement into timings and the timeline once", () => {
-    const merged = withRenderCommit(completed, { runId: "run-1", renderMs: 12 });
+    const merged = withRenderCommit(completed, {
+      runId: "run-1",
+      renderMs: 12,
+    });
     expect(merged.timings).toEqual({
       decisionMs: 200,
       toolMs: 40,
@@ -398,10 +420,34 @@ const completedJev = (overrides: Partial<ArenaLane> = {}): ArenaLane => ({
   score: { toolCorrect: true, argumentsCorrect: true, correct: true },
   timings: { decisionMs: 350, toolMs: 180, renderMs: 4, totalMs: 534 },
   events: [
-    { phase: "decision", status: "started", atMs: 0, durationMs: null, message: null },
-    { phase: "decision", status: "finished", atMs: 350, durationMs: 350, message: null },
-    { phase: "tool", status: "started", atMs: 350, durationMs: null, message: null },
-    { phase: "tool", status: "finished", atMs: 530, durationMs: 180, message: null },
+    {
+      phase: "decision",
+      status: "started",
+      atMs: 0,
+      durationMs: null,
+      message: null,
+    },
+    {
+      phase: "decision",
+      status: "finished",
+      atMs: 350,
+      durationMs: 350,
+      message: null,
+    },
+    {
+      phase: "tool",
+      status: "started",
+      atMs: 350,
+      durationMs: null,
+      message: null,
+    },
+    {
+      phase: "tool",
+      status: "finished",
+      atMs: 530,
+      durationMs: 180,
+      message: null,
+    },
   ],
   ...overrides,
 });
@@ -412,7 +458,9 @@ const markup = (lane: ArenaLane, sample = false) =>
 describe("agent conversation lane", () => {
   it("shows the shared request, the call, the prepared result and both timers", () => {
     const html = markup(completedJev());
-    expect(html).toContain("I need the item list and total for order ORD-1042.");
+    expect(html).toContain(
+      "I need the item list and total for order ORD-1042.",
+    );
     expect(html).toContain("lookup_order");
     expect(html).toContain("ORD-1042");
     expect(html).toContain("Delivered");
@@ -480,8 +528,20 @@ describe("agent conversation lane", () => {
         execution: null,
         error: "Invalid arguments for lookup_order.",
         events: [
-          { phase: "decision", status: "started", atMs: 0, durationMs: null, message: null },
-          { phase: "tool", status: "error", atMs: 350, durationMs: 0, message: "Invalid arguments for lookup_order." },
+          {
+            phase: "decision",
+            status: "started",
+            atMs: 0,
+            durationMs: null,
+            message: null,
+          },
+          {
+            phase: "tool",
+            status: "error",
+            atMs: 350,
+            durationMs: 0,
+            message: "Invalid arguments for lookup_order.",
+          },
         ],
       }),
     );
@@ -581,8 +641,20 @@ describe("execution graph rendering", () => {
             }),
             error: "Stopped by you.",
             events: [
-              { phase: "decision", status: "started", atMs: 0, durationMs: null, message: null },
-              { phase: "decision", status: "cancelled", atMs: 120, durationMs: 120, message: "Stopped by you." },
+              {
+                phase: "decision",
+                status: "started",
+                atMs: 0,
+                durationMs: null,
+                message: null,
+              },
+              {
+                phase: "decision",
+                status: "cancelled",
+                atMs: 120,
+                durationMs: 120,
+                message: "Stopped by you.",
+              },
             ],
           },
         ],
@@ -597,5 +669,90 @@ describe("execution graph rendering", () => {
     expect(html).toContain("350 ms");
     expect(html).toContain("Stopped by you.");
     expect(html).toContain("cancelled");
+  });
+});
+
+describe("arena summary", () => {
+  const lane = (
+    id: string,
+    correct: boolean,
+    totalMs: number,
+    overrides: Partial<ArenaLane> = {},
+  ): ArenaLane => ({
+    ...completedJev(),
+    id,
+    name: id,
+    score: {
+      toolCorrect: correct,
+      argumentsCorrect: correct,
+      correct,
+    },
+    timings: { decisionMs: totalMs - 30, toolMs: 30, renderMs: 0, totalMs },
+    ...overrides,
+  });
+
+  it("never gives a faster incorrect lane the fastest-exact label", () => {
+    const summary = summarizeArena([
+      lane("jev", true, 400),
+      lane("gpt", false, 120),
+      lane("haiku", true, 900),
+      lane("sonnet", false, 100, { status: "error", execution: null }),
+    ]);
+    expect(summary).toEqual({
+      highestAccuracy: ["jev", "haiku"],
+      fastestExact: ["jev"],
+      completed: 3,
+      available: 4,
+    });
+  });
+
+  it("lists every tied lane and excludes lanes that never completed", () => {
+    expect(
+      summarizeArena([
+        lane("jev", true, 400),
+        lane("gpt", true, 400),
+        lane("haiku", true, 200, { status: "cancelled", execution: null }),
+        lane("sonnet", false, 100, { status: "unavailable" }),
+      ]),
+    ).toEqual({
+      highestAccuracy: ["jev", "gpt"],
+      fastestExact: ["jev", "gpt"],
+      completed: 2,
+      available: 3,
+    });
+  });
+
+  it("reports nothing before any lane finishes", () => {
+    expect(
+      summarizeArena([
+        lane("jev", false, 0, { status: "running", score: null }),
+      ]),
+    ).toEqual({
+      highestAccuracy: [],
+      fastestExact: [],
+      completed: 0,
+      available: 1,
+    });
+    expect(summarizeArena([])).toEqual({
+      highestAccuracy: [],
+      fastestExact: [],
+      completed: 0,
+      available: 0,
+    });
+  });
+
+  it("renders both outcomes with their measured values and the methodology warning", () => {
+    const html = renderToStaticMarkup(
+      createElement(ToolArenaSummary, {
+        lanes: [lane("jev", true, 400), lane("gpt", false, 120)],
+        sample: false,
+        complete: true,
+      }),
+    );
+    expect(html).toContain("jev");
+    expect(html).toContain("400 ms");
+    expect(html).toContain("Highest accuracy");
+    expect(html).toContain("Fastest exact call");
+    expect(html).toContain("do not establish general model performance");
   });
 });

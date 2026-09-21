@@ -29,17 +29,14 @@ import {
   X,
 } from "lucide-react";
 import { DEFAULT_LANES } from "@/lib/race/types";
-import {
-  initialLaneState,
-  type ArenaConfig,
-  type ArenaLaneState,
-} from "@/lib/tool-bench/types";
+import type { ArenaConfig, ArenaLaneState } from "@/lib/tool-bench/types";
 import { ToolArenaGraph } from "./tool-arena-graph";
 import { ToolArenaLane } from "./tool-arena-lane";
 import { ToolArenaSummary } from "./tool-arena-summary";
 import { ArenaClock } from "./tool-bench-metrics";
 import {
   createArenaRun,
+  idleArenaLane,
   interruptLane,
   isArenaComplete,
   isArenaLaneState,
@@ -128,12 +125,9 @@ function ToolArenaBoard({
     () =>
       definitions.map(
         (definition) =>
-          lanes[definition.id] ?? {
-            ...initialLaneState(definition),
-            agentId: definition.agentId,
-          },
+          lanes[definition.id] ?? idleArenaLane(definition, sample),
       ),
-    [definitions, lanes],
+    [definitions, lanes, sample],
   );
   const complete = Boolean(run) && isArenaComplete(laneStates);
   const running = pending || (Boolean(run) && !complete);
@@ -239,6 +233,7 @@ function ToolArenaBoard({
         <LaneAgent
           key={definition.agentId}
           definition={definition}
+          sample={sample}
           run={run}
           register={register}
           onState={publishLane}
@@ -293,7 +288,9 @@ function ToolArenaBoard({
                 reset();
               }}
             >
-              {cases.length === 0 && <option value="">Loading requests…</option>}
+              {cases.length === 0 && (
+                <option value="">Loading requests…</option>
+              )}
               {cases.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.id}
@@ -417,7 +414,11 @@ function ToolArenaBoard({
       ) : (
         <ToolArenaGraph lanes={laneStates} sample={sample} />
       )}
-      <ToolArenaSummary lanes={laneStates} sample={sample} complete={complete} />
+      <ToolArenaSummary
+        lanes={laneStates}
+        sample={sample}
+        complete={complete}
+      />
     </main>
   );
 }
@@ -428,6 +429,7 @@ function ToolArenaBoard({
  */
 function LaneAgent({
   definition,
+  sample,
   run,
   register,
   onState,
@@ -435,6 +437,7 @@ function LaneAgent({
   onError,
 }: {
   definition: ArenaLaneDefinition;
+  sample: boolean;
   run: ArenaRun | null;
   register: (controller: ArenaController) => () => void;
   onState: (lane: ArenaLane) => void;
@@ -448,11 +451,8 @@ function LaneAgent({
   const cancelled = useRef(false);
 
   const idle = useMemo<ArenaLane>(
-    () => ({
-      ...initialLaneState(definition),
-      agentId: definition.agentId,
-    }),
-    [definition],
+    () => idleArenaLane(definition, sample),
+    [definition, sample],
   );
   const base = useMemo<ArenaLane>(
     () => run?.lanes.find((item) => item.id === definition.id) ?? idle,
@@ -479,11 +479,10 @@ function LaneAgent({
   }, [lane]);
 
   useEffect(() => onState(lane), [lane, onState]);
-  useEffect(() => onReady(definition.id, isReady), [
-    definition.id,
-    isReady,
-    onReady,
-  ]);
+  useEffect(
+    () => onReady(definition.id, isReady),
+    [definition.id, isReady, onReady],
+  );
 
   // UI commit: from the moment the execution result is in state until React has
   // committed the lane. An application lifecycle measurement, not a paint metric.
@@ -507,9 +506,10 @@ function LaneAgent({
       cancelled.current = false;
       setFallback(null);
       setOverlay(null);
+      // launchArena only calls this for a participating lane, so it starts
+      // running regardless of whether the lane carries live credentials.
       const initialState: ArenaLane = {
-        ...initialLaneState(definition),
-        agentId: definition.agentId,
+        ...idleArenaLane(definition, true),
         runId,
         caseId: config.caseId,
         prompt: prompt ?? "",

@@ -1,6 +1,13 @@
 "use client";
 
-import { Boxes, Package, Receipt, ShieldAlert, Ticket, UserRound } from "lucide-react";
+import {
+  Boxes,
+  Package,
+  Receipt,
+  ShieldAlert,
+  Ticket,
+  UserRound,
+} from "lucide-react";
 import type { ToolResult } from "../lib/tool-bench/executor";
 import type { ToolExecution } from "../lib/tool-bench/types";
 

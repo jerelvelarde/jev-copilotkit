@@ -4,7 +4,7 @@ A side-by-side Wikipedia link race inspired by the [Wikiracing segment in Matthe
 
 Choose a starting article and a destination. Jev and optional comparison models choose links, and CopilotKit streams their paths into a live race interface.
 
-A second demo, the **[Tool-call arena](http://localhost:3000/tool-bench)**, compares tool selection, argument accuracy, and latency on identical support requests. Both demos use the same configured providers and the same dark, four-pane arena layout.
+A second demo, the **[Tool-call arena](http://localhost:3000/tool-bench)**, races four CopilotKit agents through one support request: each picks a tool, runs the same local tool, and renders the result. Both demos use the same configured providers and the same dark, four-pane arena layout.
 
 ## Run locally
 
@@ -46,7 +46,7 @@ The screenshot-inspired dark arena keeps all four racers on screen on desktop. P
 
 The frontend uses `CopilotKitProvider`, `useAgent`, and `useCopilotKit` from the published `@copilotkit/react-core/v2` entry point. Race controls invoke `copilotkit.runAgent`, and the entire board renders the agent's shared state. Stop uses `copilotkit.stopAgent`.
 
-The server registers `WikiRaceAgent` and `ToolBenchAgent`, both AG-UI `AbstractAgent` implementations, with `CopilotRuntime`. They emit `RUN_STARTED`, successive `STATE_SNAPSHOT` events, and `RUN_FINISHED` or `RUN_ERROR`. No chat LLM is needed to control the arenas, and there is no separate custom SSE client behind the UI.
+The server registers `WikiRaceAgent` and one `ToolArenaAgent` per tool-arena lane (`tool_bench_jev`, `tool_bench_gpt`, `tool_bench_haiku`, `tool_bench_sonnet`), all AG-UI `AbstractAgent` implementations, with `CopilotRuntime`. They emit `RUN_STARTED`, successive `STATE_SNAPSHOT` events, and `RUN_FINISHED` or `RUN_ERROR`. The tool arena starts all four agents from one run specification, so each lane runs, fails, and stops independently. No chat LLM is needed to control the arenas, and there is no separate custom SSE client behind the UI.
 
 Main files:
 
@@ -55,23 +55,41 @@ Main files:
 - [Model adapters](src/lib/race/providers.ts): Jev's typed decisions and optional OpenRouter responses.
 - [CopilotKit agent](src/lib/race/agent.ts): engine-to-AG-UI connection.
 - [Sample environment](src/lib/race/sample.ts): clearly synthetic, credential-free demonstration.
-- [Tool benchmark engine](src/lib/tool-bench/engine.ts): case ordering, exact scoring, isolated lanes, cancellation, and deadlines.
+- [Arena lane engine](src/lib/tool-bench/lane-engine.ts): one decision, one tool execution, the normalized event timeline, exact scoring, cancellation, and per-lane deadlines.
+- [Local tool executor](src/lib/tool-bench/executor.ts): strict argument schemas and deterministic, side-effect-free tool results.
 - [Tool benchmark adapters](src/lib/tool-bench/providers.ts): typed Jev questions and native OpenRouter function calls.
 - [Labeled support cases](src/lib/tool-bench/cases.ts): the versioned `support-v1` dataset.
 
 ## Tool-call arena
 
-Open `/tool-bench`, choose 6 or 12 support requests, and press **Run benchmark**. Every lane receives the same cases in the same order, with one request in flight per lane. Lanes advance independently. Inspect any completed case to compare the returned tool and arguments against its labeled answer. The six tools cover order lookup, shipment tracking, refunds, subscription cancellation, support tickets, and human escalation. These are simulated operations: no refunds, cancellations, or external actions are executed.
+Open `/tool-bench`, pick one support request, and press **Start the race**. Four CopilotKit agents receive the same run specification at the same moment and each one:
 
-Jev selects the tool and candidate-bound argument fields in one request using typed Choice questions. The comparison models use native function calling through OpenRouter. They receive the same tool descriptions, entity candidates, and support request; labeled answers are excluded from every provider input. Jev's request asks for all fields before retaining the chosen tool's required fields, while LLMs return the chosen function's arguments. This compares two practical integration approaches, not identical model protocols.
+1. Shows the identical user message.
+2. Chooses a tool and its arguments.
+3. Runs that tool through the shared local registry.
+4. Renders the typed tool result in a prepared card.
 
-- **Exact accuracy** requires both the correct tool and exactly the required argument keys and values. Each case also shows separate tool and argument checks. Extra, missing, or incorrect arguments fail exact scoring.
-- **p50 / p95 latency** uses nearest-rank percentiles of measured per-case provider time. It includes the request and response processing, not a provider's internal inference duration. Token counts and confidence appear only when supplied by the provider.
-- **Correct calls / second** divides the number of exactly correct calls by the lane's total elapsed time. A faster wrong answer does not earn successful throughput.
-- Malformed outputs count as incorrect cases. Transport and authentication errors stop only the affected lane and remain visible. Runs have a 90-second overall deadline and can be stopped.
-- **Sample** mode uses authored correct answers and identical simulated delays for all lanes. It demonstrates the UI and is never presented as measured model performance. A live Jev comparison appears only after Jev and at least one baseline finish the same suite, with both latency and accuracy disclosed.
+The six tools cover order lookup, shipment tracking, refunds, subscription cancellation, support tickets, and human escalation. They execute in memory, are deterministic, and have no side effects: no refunds, cancellations, or external calls happen. A provider can influence which tool runs, never what the result card renders.
 
-This is a small, curated application benchmark. It is useful for inspecting behavior and recording a demo, not for claiming general model rankings.
+Switch between **UI** and **Graph** without restarting. The graph draws one `Prompt → Decision → Tool → UI` trace per agent on a shared time axis, with each node repeating its phase, status, and duration as text so it stays readable without color. **Stop** aborts every running agent and keeps the completed events visible.
+
+Jev selects the tool and candidate-bound argument fields in one request using typed Choice questions. The comparison models use native function calling through OpenRouter. They receive the same tool descriptions, entity candidates, and support request; labeled answers are excluded from every provider input. This compares two practical integration approaches, not identical model protocols.
+
+**Timing boundaries**
+
+- **Decision**: request dispatch until a valid tool call or a provider failure.
+- **Tool**: local tool invocation until a result or a tool failure.
+- **UI commit**: tool result received until the browser commits the rendered lane. This is an application lifecycle measurement, not a browser paint benchmark. It is measured in the client and merged into the lane state, so a later server snapshot cannot erase it.
+- **Total**: the sum of that lane's phases. The header clock is wall-clock race time from launch until every participating agent settled.
+
+**Scoring**
+
+- **Tool accuracy** checks the selected tool name; **exact-call accuracy** also requires every argument key and value, with no extra or missing arguments.
+- The summary names the highest-accuracy lane and the fastest **exact** lane separately, and never combines accuracy and latency into a composite. A faster incorrect lane wins nothing. Ties list every tied agent.
+- A provider failure, an unknown tool, or invalid arguments ends that lane as a visible error with no fabricated result. One failing lane never stops the other three.
+- **Sample** mode replays authored answers behind fixed per-lane delays so the race is visible. Sample decisions and timings are synthetic, labeled as such in the interface, and are never a provider measurement.
+
+This is a small, curated demonstration. It is useful for inspecting behavior and recording a demo. A single request on this suite does not establish general model performance.
 
 ## Race rules and measurement
 
@@ -95,7 +113,7 @@ pnpm format:check
 pnpm build
 ```
 
-Tests cover legal and invalid moves, redirects, cycles, hop/deadline limits, cancellation, lane isolation, Wikipedia pagination, provider schema validation, Jev's two-stage selection, and an entire sample race through the AG-UI agent. Tool benchmark tests cover exact argument scoring, label exclusion, native-call contracts, provider timeouts, equal sample delays, cancellation through the actual agent runner, metrics, comparison eligibility, and stopped-result inspection.
+Tests cover legal and invalid moves, redirects, cycles, hop/deadline limits, cancellation, lane isolation, Wikipedia pagination, provider schema validation, Jev's two-stage selection, and an entire sample race through the AG-UI agent. Tool arena tests cover exact argument scoring, label exclusion, native-call contracts, strict local tool schemas and their typed results, event ordering and phase durations, provider/tool/deadline/cancellation outcomes, per-lane agent identity, cancellation through the actual agent runner, independent lane failure during a synchronized launch, the UI-commit overlay, trace geometry, the race clock, conversation and result rendering, and the accuracy/speed summary.
 
 This is a local prototype, served on `127.0.0.1` by default. Before public hosting, add authentication, per-user quotas, persistence, and a suitable deployment timeout. Do not expose a credential-backed demo endpoint without access controls.
 

@@ -128,6 +128,23 @@ export function withRenderCommit<State extends ArenaLaneState>(
   };
 }
 
+/**
+ * Participation depends on the mode: Sample races every lane, Live only the
+ * configured ones. A Sample lane must never be labelled as needing a key.
+ */
+export function idleArenaLane(
+  definition: ArenaLaneDefinition,
+  sample: boolean,
+): ArenaLane {
+  const joins = sample || definition.available;
+  return {
+    ...initialLaneState(definition),
+    agentId: definition.agentId,
+    status: joins ? "idle" : "unavailable",
+    error: joins ? null : missingKeyMessage(definition),
+  };
+}
+
 /** One immutable specification shared by every agent in the race. */
 export function createArenaRun(
   mode: ArenaConfig["mode"],
@@ -137,19 +154,18 @@ export function createArenaRun(
 ): ArenaRun {
   const config = arenaConfigSchema.parse({ mode, caseId });
   const runId = options.runId ?? crypto.randomUUID();
+  const sample = config.mode === "sample";
   return {
     runId,
     config,
     lanes: definitions.map((definition) => {
-      const joins = config.mode === "sample" || definition.available;
+      const lane = idleArenaLane(definition, sample);
       return {
-        ...initialLaneState(definition),
-        agentId: definition.agentId,
+        ...lane,
         runId,
         caseId: config.caseId,
         prompt: options.prompt ?? "",
-        status: joins ? "running" : "unavailable",
-        error: joins ? null : missingKeyMessage(definition),
+        status: lane.status === "idle" ? "running" : lane.status,
       };
     }),
   };

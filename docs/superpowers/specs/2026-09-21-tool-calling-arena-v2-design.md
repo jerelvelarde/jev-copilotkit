@@ -132,4 +132,3 @@ Verification includes formatting, lint, explicit TypeScript checking, the full t
 ## Scope Boundaries
 
 This iteration redesigns `/tool-bench`. It does not build the separate solo Jev generative-UI application, add Automatic Learning, call external business tools, or claim general model performance from the small included dataset.
-

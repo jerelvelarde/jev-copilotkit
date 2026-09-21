@@ -52,9 +52,7 @@ describe("tool arena lane AG-UI lifecycle", () => {
     const states = snapshots(events);
     expect(states.length).toBeGreaterThan(1);
     for (const state of states) expect(state.runId).toBe(runId);
-    expect(states.map((state) => state.events.length)).toEqual([
-      0, 1, 2, 3, 4,
-    ]);
+    expect(states.map((state) => state.events.length)).toEqual([0, 1, 2, 3, 4]);
     expect(states.at(-1)).toMatchObject({
       status: "complete",
       caseId: BENCH_CASES[0].id,

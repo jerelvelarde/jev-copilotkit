@@ -94,12 +94,7 @@ export type LaneTimings = {
   totalMs: number;
 };
 export type ArenaLaneStatus =
-  | "idle"
-  | "running"
-  | "complete"
-  | "cancelled"
-  | "error"
-  | "unavailable";
+  "idle" | "running" | "complete" | "cancelled" | "error" | "unavailable";
 export type ArenaLaneState = LaneDefinition & {
   status: ArenaLaneStatus;
   runId: string;

@@ -1,8 +1,4 @@
-import {
-  getToolDefinition,
-  type ToolArguments,
-  type ToolName,
-} from "./tools";
+import { getToolDefinition, type ToolArguments, type ToolName } from "./tools";
 import type { ToolCall, ToolExecution } from "./types";
 
 /** Every prepared result the arena can render. Adding a tool must extend this. */

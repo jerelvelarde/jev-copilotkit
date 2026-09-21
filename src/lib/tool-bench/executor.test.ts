@@ -49,14 +49,20 @@ describe("deterministic local tool execution", () => {
 
   it.each([
     [{ tool: "invented", arguments: {} }, "Unknown tool"],
-    [{ tool: "lookup_order", arguments: { order_id: 42 } }, "Invalid arguments"],
+    [
+      { tool: "lookup_order", arguments: { order_id: 42 } },
+      "Invalid arguments",
+    ],
     [{ tool: "lookup_order", arguments: {} }, "Invalid arguments"],
     [
       { tool: "lookup_order", arguments: { order_id: "ORD-1", extra: "x" } },
       "Invalid arguments",
     ],
     [
-      { tool: "refund_payment", arguments: { payment_id: "P", reason: "nope" } },
+      {
+        tool: "refund_payment",
+        arguments: { payment_id: "P", reason: "nope" },
+      },
       "Invalid arguments",
     ],
   ])("rejects an unsafe call", async (call, message) => {
@@ -80,14 +86,15 @@ describe("deterministic local tool execution", () => {
     expect(
       new Set(
         await Promise.all(
-          TOOL_REGISTRY.map(async (tool) =>
-            (
-              await executeToolCall(
-                valid[tool.name],
-                new AbortController().signal,
-                0,
-              )
-            ).result.kind,
+          TOOL_REGISTRY.map(
+            async (tool) =>
+              (
+                await executeToolCall(
+                  valid[tool.name],
+                  new AbortController().signal,
+                  0,
+                )
+              ).result.kind,
           ),
         ),
       ).size,

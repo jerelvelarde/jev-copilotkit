@@ -19,7 +19,10 @@ function laneProvider(lane: LaneDefinition, config: ArenaConfig) {
   if (config.mode === "sample") return createSampleProvider(lane.id);
   return lane.provider === "jev"
     ? createJevProvider(process.env.TYPESAFE_API_KEY ?? "", lane.model)
-    : createOpenRouterProvider(process.env.OPENROUTER_API_KEY ?? "", lane.model);
+    : createOpenRouterProvider(
+        process.env.OPENROUTER_API_KEY ?? "",
+        lane.model,
+      );
 }
 
 export class ToolArenaAgent extends AbstractAgent {
