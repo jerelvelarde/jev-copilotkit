@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_LANES } from "../race/types";
 import { BENCH_CASES, toCaseInput } from "./cases";
 import { scoreCall } from "./scoring";
 import { createToolSchemas, TOOL_REGISTRY } from "./tools";
-import type { ToolCall } from "./types";
+import { arenaConfigSchema, initialLaneState, type ToolCall } from "./types";
 
 const expected: ToolCall = {
   tool: "refund_payment",
@@ -62,5 +63,42 @@ describe("exact tool-call scoring and authored support suite", () => {
         expect(schema.properties[field].enum).toContain(value);
       expect(toCaseInput(item)).not.toHaveProperty("expected");
     }
+  });
+});
+
+describe("single-case arena contract", () => {
+  it("uses one selected case per synchronized race", () => {
+    expect(
+      arenaConfigSchema.parse({ mode: "sample", caseId: "order-details" }),
+    ).toEqual({ mode: "sample", caseId: "order-details" });
+    expect(() =>
+      arenaConfigSchema.parse({ mode: "sample", caseCount: 6 }),
+    ).toThrow();
+    expect(() =>
+      arenaConfigSchema.parse({ mode: "batch", caseId: "order-details" }),
+    ).toThrow();
+  });
+
+  it("creates an idle lane with an empty normalized timeline", () => {
+    const lane = initialLaneState({ ...DEFAULT_LANES[0], available: true });
+    expect(lane).toMatchObject({
+      ...DEFAULT_LANES[0],
+      available: true,
+      status: "idle",
+      runId: "",
+      caseId: null,
+      prompt: "",
+      expected: null,
+      decision: null,
+      execution: null,
+      score: null,
+      timings: { decisionMs: 0, toolMs: 0, renderMs: 0, totalMs: 0 },
+      events: [],
+      error: null,
+    });
+  });
+
+  it("starts an unconfigured lane as unavailable", () => {
+    expect(initialLaneState(DEFAULT_LANES[0]).status).toBe("unavailable");
   });
 });
