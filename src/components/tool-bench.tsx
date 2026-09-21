@@ -172,10 +172,6 @@ function ToolArenaBoard({
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    if (run && complete) setFinishedAt((current) => current ?? performance.now());
-  }, [run, complete]);
-
   function reset() {
     if (activeRun.current) return;
     setRun(null);
@@ -217,11 +213,14 @@ function ToolArenaBoard({
     setStartedAt(performance.now());
     setFinishedAt(null);
     try {
+      // Every lane promise settles exactly when that agent reaches a terminal
+      // state, so this is the honest end of the race, not a polled guess.
       await launchArena([...controllers.current.values()], {
         config: specification.config,
         runId: specification.runId,
         prompt: selectedCase?.prompt,
       });
+      setFinishedAt(performance.now());
     } finally {
       activeRun.current = false;
       setPending(false);
@@ -323,11 +322,7 @@ function ToolArenaBoard({
           </fieldset>
         </div>
         <div className="tb-actions">
-          <ArenaClock
-            startedAt={startedAt}
-            finishedAt={finishedAt}
-            runId={run?.runId ?? ""}
-          />
+          <ArenaClock startedAt={startedAt} finishedAt={finishedAt} />
           {running ? (
             <button
               className="tb-button tb-stop"
@@ -479,7 +474,9 @@ function LaneAgent({
   );
 
   const laneRef = useRef(lane);
-  laneRef.current = lane;
+  useEffect(() => {
+    laneRef.current = lane;
+  }, [lane]);
 
   useEffect(() => onState(lane), [lane, onState]);
   useEffect(() => onReady(definition.id, isReady), [
@@ -536,7 +533,9 @@ function LaneAgent({
     [agent, copilotkit, definition, onError],
   );
   const launchRef = useRef(launch);
-  launchRef.current = launch;
+  useEffect(() => {
+    launchRef.current = launch;
+  }, [launch]);
 
   const stop = useCallback(() => {
     cancelled.current = true;
@@ -544,7 +543,9 @@ function LaneAgent({
     copilotkit.stopAgent({ agent });
   }, [agent, copilotkit]);
   const stopRef = useRef(stop);
-  stopRef.current = stop;
+  useEffect(() => {
+    stopRef.current = stop;
+  }, [stop]);
 
   const controller = useMemo<ArenaController>(
     () => ({

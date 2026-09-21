@@ -1,10 +1,13 @@
 import { AbstractAgent } from "@ag-ui/client";
 import { EventType, type BaseEvent, type RunAgentInput } from "@ag-ui/core";
 import { CopilotKitCoreReact } from "@copilotkit/react-core/v2/context";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { Observable, type Subscriber } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_LANES } from "../lib/race/types";
 import { initialLaneState, type ArenaLaneState } from "../lib/tool-bench/types";
+import { ToolArenaLane } from "./tool-arena-lane";
 import {
   createArenaRun,
   interruptLane,
@@ -355,5 +358,140 @@ describe("lane lifecycle with the installed CopilotKit SDK", () => {
       status: "cancelled",
       timings: { decisionMs: 210, toolMs: 40, totalMs: 250 },
     });
+  });
+});
+
+const completedJev = (overrides: Partial<ArenaLane> = {}): ArenaLane => ({
+  ...state("complete"),
+  caseId: "order-details",
+  prompt: "I need the item list and total for order ORD-1042.",
+  expected: { tool: "lookup_order", arguments: { order_id: "ORD-1042" } },
+  decision: {
+    tool: "lookup_order",
+    arguments: { order_id: "ORD-1042" },
+    modelMs: 350,
+    inputTokens: 412,
+    outputTokens: 18,
+    confidence: 0.94,
+    choices: [
+      { tool: "lookup_order", probability: 0.94 },
+      { tool: "track_shipment", probability: 0.04 },
+    ],
+  },
+  execution: {
+    tool: "lookup_order",
+    arguments: { order_id: "ORD-1042" },
+    result: {
+      kind: "order",
+      orderId: "ORD-1042",
+      status: "Delivered",
+      items: 2,
+      total: "$84.00",
+    },
+  },
+  score: { toolCorrect: true, argumentsCorrect: true, correct: true },
+  timings: { decisionMs: 350, toolMs: 180, renderMs: 4, totalMs: 534 },
+  events: [
+    { phase: "decision", status: "started", atMs: 0, durationMs: null, message: null },
+    { phase: "decision", status: "finished", atMs: 350, durationMs: 350, message: null },
+    { phase: "tool", status: "started", atMs: 350, durationMs: null, message: null },
+    { phase: "tool", status: "finished", atMs: 530, durationMs: 180, message: null },
+  ],
+  ...overrides,
+});
+
+const markup = (lane: ArenaLane, sample = false) =>
+  renderToStaticMarkup(createElement(ToolArenaLane, { lane, sample }));
+
+describe("agent conversation lane", () => {
+  it("shows the shared request, the call, the prepared result and both timers", () => {
+    const html = markup(completedJev());
+    expect(html).toContain("I need the item list and total for order ORD-1042.");
+    expect(html).toContain("lookup_order");
+    expect(html).toContain("ORD-1042");
+    expect(html).toContain("Delivered");
+    expect(html).toContain("$84.00");
+    expect(html).toContain("Exact match");
+    expect(html).toContain("350 ms");
+    expect(html).toContain("180 ms");
+    expect(html).toContain("Jev");
+  });
+
+  it("discloses ranked Jev choices and keeps both correctness checks visible", () => {
+    const html = markup(completedJev());
+    expect(html).toContain("track_shipment");
+    expect(html).toContain("94.0%");
+    expect(html).toContain("Tool ✓");
+    expect(html).toContain("arguments ✓");
+  });
+
+  it("omits ranked choices for a lane whose provider returns none", () => {
+    const lane = completedJev({
+      ...DEFAULT_LANES[1],
+      agentId: "tool_bench_gpt",
+    });
+    const html = markup({
+      ...lane,
+      decision: { ...lane.decision!, confidence: null, choices: [] },
+    });
+    expect(html).not.toContain("Ranked tool choices");
+    expect(html).toContain("lookup_order");
+  });
+
+  it("marks an incorrect but executed call without claiming a match", () => {
+    const html = markup(
+      completedJev({
+        decision: {
+          ...completedJev().decision!,
+          tool: "track_shipment",
+          arguments: { order_id: "ORD-1089" },
+          choices: [],
+          confidence: null,
+        },
+        execution: {
+          tool: "track_shipment",
+          arguments: { order_id: "ORD-1089" },
+          result: {
+            kind: "shipment",
+            orderId: "ORD-1089",
+            carrier: "Northwind Freight",
+            status: "Out for delivery",
+            eta: "Today, 6:00 PM",
+          },
+        },
+        score: { toolCorrect: false, argumentsCorrect: false, correct: false },
+      }),
+    );
+    expect(html).toContain("Tool mismatch");
+    expect(html).not.toContain("Exact match");
+    expect(html).toContain("Northwind Freight");
+  });
+
+  it("never renders a fabricated result for a failed lane", () => {
+    const html = markup(
+      completedJev({
+        status: "error",
+        execution: null,
+        error: "Invalid arguments for lookup_order.",
+        events: [
+          { phase: "decision", status: "started", atMs: 0, durationMs: null, message: null },
+          { phase: "tool", status: "error", atMs: 350, durationMs: 0, message: "Invalid arguments for lookup_order." },
+        ],
+      }),
+    );
+    expect(html).toContain("Invalid arguments for lookup_order.");
+    expect(html).not.toContain("Delivered");
+    expect(html).not.toContain("$84.00");
+    expect(html).toContain("Lane failed");
+  });
+
+  it("labels sample decisions synthetic and names the missing key when unavailable", () => {
+    expect(markup(completedJev(), true)).toContain("Synthetic");
+    const html = markup({
+      ...state("unavailable"),
+      error: "Configure TYPESAFE_API_KEY to enable live Jev.",
+    });
+    expect(html).toContain("TYPESAFE_API_KEY");
+    expect(html).not.toContain("Exact match");
   });
 });
