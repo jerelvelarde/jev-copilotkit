@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { BenchCaseInput } from "./types";
 
 export const ARGUMENT_FIELDS = {
@@ -40,7 +41,7 @@ export const ARGUMENT_FIELDS = {
 } satisfies Record<string, { description: string; values: string[] | null }>;
 export type ArgumentField = keyof typeof ARGUMENT_FIELDS;
 export const TOOL_REGISTRY: {
-  name: string;
+  name: ToolName;
   description: string;
   fields: ArgumentField[];
 }[] = [
@@ -81,6 +82,51 @@ export const TOOL_REGISTRY: {
     fields: ["customer_id", "priority"],
   },
 ];
+
+/**
+ * Local execution contract. Kept strict and independent of the per-case entity
+ * candidates so an off-suite but structurally valid call still runs and shows a
+ * real result instead of a fabricated one.
+ */
+const toolDefinitions = {
+  lookup_order: z.object({ order_id: z.string().min(1) }).strict(),
+  track_shipment: z.object({ order_id: z.string().min(1) }).strict(),
+  refund_payment: z
+    .object({
+      payment_id: z.string().min(1),
+      reason: z.enum(["duplicate", "not_received", "damaged"]),
+    })
+    .strict(),
+  cancel_subscription: z
+    .object({
+      subscription_id: z.string().min(1),
+      timing: z.enum(["now", "period_end"]),
+    })
+    .strict(),
+  create_ticket: z
+    .object({
+      customer_id: z.string().min(1),
+      category: z.enum(["billing", "technical", "delivery"]),
+    })
+    .strict(),
+  escalate_to_human: z
+    .object({
+      customer_id: z.string().min(1),
+      priority: z.enum(["normal", "urgent"]),
+    })
+    .strict(),
+} as const;
+export type ToolName = keyof typeof toolDefinitions;
+export type ToolArguments = {
+  [Name in ToolName]: z.infer<(typeof toolDefinitions)[Name]>;
+};
+export function getToolDefinition(
+  name: string,
+): (typeof toolDefinitions)[ToolName] | null {
+  return Object.hasOwn(toolDefinitions, name)
+    ? toolDefinitions[name as ToolName]
+    : null;
+}
 
 export function argumentCandidates(
   input: BenchCaseInput,
