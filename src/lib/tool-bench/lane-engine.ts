@@ -35,8 +35,7 @@ export async function runArenaLane(
   publish: (state: ArenaLaneState) => void,
 ): Promise<ArenaLaneState> {
   const authored = BENCH_CASES.find((item) => item.id === config.caseId);
-  if (!authored)
-    throw new Error(`Unknown benchmark case: ${config.caseId}.`);
+  if (!authored) throw new Error(`Unknown benchmark case: ${config.caseId}.`);
 
   const now = dependencies.now ?? (() => performance.now());
   const state: ArenaLaneState = {
@@ -62,7 +61,9 @@ export async function runArenaLane(
   );
   const signal = AbortSignal.any([parentSignal, deadline]);
   const began = now();
-  const record = (event: Omit<ArenaEvent, "message"> & { message?: string }) => {
+  const record = (
+    event: Omit<ArenaEvent, "message"> & { message?: string },
+  ) => {
     state.events.push({ message: null, ...event });
     emit();
   };
@@ -73,10 +74,10 @@ export async function runArenaLane(
     error: unknown,
   ) => {
     const cancelled = parentSignal.aborted;
+    // A stop reason is a transport artifact ("This operation was aborted"),
+    // never a message worth showing, so cancellation reads the same every time.
     const message = cancelled
-      ? error instanceof Error
-        ? error.message
-        : "Stopped by you."
+      ? "Stopped by you."
       : deadline.aborted
         ? "This lane exceeded its time limit."
         : error instanceof Error

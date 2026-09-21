@@ -75,8 +75,7 @@ describe("one-lane arena engine", () => {
   it("emits an ordered timeline, scores the call and runs the local tool", async () => {
     const { final } = await runLane({
       now: steppedClock([20, 10]),
-      execute: (call) =>
-        executeToolCall(call, new AbortController().signal, 0),
+      execute: (call) => executeToolCall(call, new AbortController().signal, 0),
     });
     expect(phases(final)).toEqual([
       ["decision", "started"],
@@ -104,8 +103,7 @@ describe("one-lane arena engine", () => {
 
   it("publishes cloned snapshots at every phase boundary", async () => {
     const { final, snapshots } = await runLane({
-      execute: (call) =>
-        executeToolCall(call, new AbortController().signal, 0),
+      execute: (call) => executeToolCall(call, new AbortController().signal, 0),
     });
     expect(snapshots.map((state) => state.events.length)).toEqual([
       0, 1, 2, 3, 4,
@@ -125,8 +123,7 @@ describe("one-lane arena engine", () => {
     const provider = vi.fn<BenchProvider>(async () => decision());
     await runLane({
       provider,
-      execute: (call) =>
-        executeToolCall(call, new AbortController().signal, 0),
+      execute: (call) => executeToolCall(call, new AbortController().signal, 0),
     });
     const [input] = provider.mock.calls[0];
     expect(input).not.toHaveProperty("expected");
@@ -140,8 +137,7 @@ describe("one-lane arena engine", () => {
           tool: "track_shipment",
           arguments: { order_id: "ORD-1089" },
         }),
-      execute: (call) =>
-        executeToolCall(call, new AbortController().signal, 0),
+      execute: (call) => executeToolCall(call, new AbortController().signal, 0),
     });
     expect(final.status).toBe("complete");
     expect(final.score).toEqual({
@@ -251,7 +247,10 @@ describe("one-lane arena engine", () => {
       },
       signal: controller.signal,
     });
-    controller.abort(new Error("Stopped by you."));
+    // The SDK aborts with a DOMException; the lane must not surface it raw.
+    controller.abort(
+      new DOMException("This operation was aborted", "AbortError"),
+    );
     const { final } = await pending;
     expect(final.status).toBe("cancelled");
     expect(final.error).toBe("Stopped by you.");
