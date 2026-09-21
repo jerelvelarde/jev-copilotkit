@@ -7,7 +7,13 @@ import { Observable, type Subscriber } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_LANES } from "../lib/race/types";
 import { initialLaneState, type ArenaLaneState } from "../lib/tool-bench/types";
+import { ToolArenaGraph } from "./tool-arena-graph";
 import { ToolArenaLane } from "./tool-arena-lane";
+import {
+  arenaClockMs,
+  buildTrace,
+  createArenaTicker,
+} from "./tool-bench-metrics";
 import {
   createArenaRun,
   interruptLane,
@@ -493,5 +499,103 @@ describe("agent conversation lane", () => {
     });
     expect(html).toContain("TYPESAFE_API_KEY");
     expect(html).not.toContain("Exact match");
+  });
+});
+
+describe("execution trace geometry", () => {
+  const events = completedJev().events;
+
+  it("places ordered nodes as clamped percentages of the shared scale", () => {
+    expect(buildTrace(events, 1000)).toEqual([
+      { ...events[0], left: 0, width: 0 },
+      { ...events[1], left: 35, width: 35 },
+      { ...events[2], left: 35, width: 0 },
+      { ...events[3], left: 53, width: 18 },
+    ]);
+  });
+
+  it("keeps zero-duration, oversized and cancelled lanes renderable", () => {
+    expect(buildTrace(events, 0)[1]).toMatchObject({ left: 100, width: 100 });
+    expect(
+      buildTrace(
+        [
+          {
+            phase: "tool",
+            status: "cancelled",
+            atMs: 40,
+            durationMs: 0,
+            message: "Stopped by you.",
+          },
+        ],
+        100,
+      ),
+    ).toEqual([
+      {
+        phase: "tool",
+        status: "cancelled",
+        atMs: 40,
+        durationMs: 0,
+        message: "Stopped by you.",
+        left: 40,
+        width: 1,
+      },
+    ]);
+    expect(buildTrace([], 100)).toEqual([]);
+  });
+});
+
+describe("global race clock", () => {
+  it("counts up while racing and freezes at the recorded finish", () => {
+    expect(arenaClockMs(null, null, 500)).toBe(0);
+    expect(arenaClockMs(100, null, 900)).toBe(800);
+    expect(arenaClockMs(100, 700, 5_000)).toBe(600);
+    expect(arenaClockMs(100, null, null)).toBe(0);
+    expect(arenaClockMs(900, null, 100)).toBe(0);
+  });
+
+  it("ticks on an interval and stops when the race is over", () => {
+    vi.useFakeTimers();
+    let ticks = 0;
+    const stop = createArenaTicker(() => {
+      ticks += 1;
+    }, 50);
+    vi.advanceTimersByTime(200);
+    expect(ticks).toBe(4);
+    stop();
+    vi.advanceTimersByTime(500);
+    expect(ticks).toBe(4);
+    vi.useRealTimers();
+  });
+});
+
+describe("execution graph rendering", () => {
+  it("labels every agent row and keeps phase, status and duration readable", () => {
+    const html = renderToStaticMarkup(
+      createElement(ToolArenaGraph, {
+        lanes: [
+          completedJev(),
+          {
+            ...state("cancelled", {
+              ...DEFAULT_LANES[1],
+              agentId: "tool_bench_gpt",
+            }),
+            error: "Stopped by you.",
+            events: [
+              { phase: "decision", status: "started", atMs: 0, durationMs: null, message: null },
+              { phase: "decision", status: "cancelled", atMs: 120, durationMs: 120, message: "Stopped by you." },
+            ],
+          },
+        ],
+        sample: false,
+      }),
+    );
+    expect(html).toContain("Jev");
+    expect(html).toContain("GPT-4.1 mini");
+    expect(html).toContain("Prompt");
+    expect(html).toContain("Decision");
+    expect(html).toContain("Tool");
+    expect(html).toContain("350 ms");
+    expect(html).toContain("Stopped by you.");
+    expect(html).toContain("cancelled");
   });
 });
