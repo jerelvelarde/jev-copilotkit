@@ -1,4 +1,4 @@
-import { DEFAULT_LANES } from "../race/types";
+import { ARENA_LANES } from "./lanes";
 import { BENCH_CASES } from "./cases";
 import { abortableDelay } from "./executor";
 import { TOOL_REGISTRY } from "./tools";
@@ -6,7 +6,7 @@ import type { BenchProvider } from "./types";
 
 /** Authored lane order only; it staggers the demo, it is not a measurement. */
 export function sampleLaneIndex(laneId: string) {
-  const index = DEFAULT_LANES.findIndex((lane) => lane.id === laneId);
+  const index = ARENA_LANES.findIndex((lane) => lane.id === laneId);
   return index < 0 ? 0 : index;
 }
 

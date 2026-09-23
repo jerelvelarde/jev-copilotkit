@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { DEFAULT_LANES, type LaneDefinition } from "../race/types";
+import type { LaneDefinition } from "../race/types";
+import { ARENA_LANES, arenaKeyName } from "./lanes";
 import type { scoreCall } from "./scoring";
 
 export const benchConfigSchema = z.object({
@@ -110,9 +111,7 @@ export type ArenaLaneState = LaneDefinition & {
 };
 /** Names the required server variable without ever revealing its value. */
 export function missingKeyMessage(lane: LaneDefinition) {
-  return lane.provider === "jev"
-    ? "Configure TYPESAFE_API_KEY to enable live Jev."
-    : "Configure OPENROUTER_API_KEY to enable this comparison model.";
+  return `Configure ${arenaKeyName(lane)} to enable live ${lane.name}.`;
 }
 export function initialLaneState(lane: LaneDefinition): ArenaLaneState {
   return {
@@ -133,7 +132,7 @@ export function initialLaneState(lane: LaneDefinition): ArenaLaneState {
 
 export function initialBench(
   config = DEFAULT_BENCH_CONFIG,
-  definitions = DEFAULT_LANES,
+  definitions = ARENA_LANES,
 ): BenchState {
   return {
     config,

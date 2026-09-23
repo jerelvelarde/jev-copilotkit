@@ -8,22 +8,15 @@ import {
   TOOL_REGISTRY,
 } from "./tools";
 import type { ArgumentField } from "./tools";
-import type { BenchDecision, BenchProvider, ToolCall } from "./types";
+import type { BenchDecision, BenchProvider } from "./types";
+import { BenchOutputError } from "./errors";
+export { BenchOutputError } from "./errors";
+import {
+  createAnthropicProvider,
+  createGoogleProvider,
+  createOpenAIProvider,
+} from "./direct-providers";
 
-/** A model answered, but did not produce one usable call. Score it and continue. */
-export class BenchOutputError extends Error {
-  constructor(
-    message: string,
-    readonly modelMs: number,
-    readonly inputTokens: number | null = null,
-    readonly outputTokens: number | null = null,
-    readonly actual: ToolCall | null = null,
-    readonly selectedTool: string | null = actual?.tool ?? null,
-  ) {
-    super(message);
-    this.name = "BenchOutputError";
-  }
-}
 const probability = z.number().min(0).max(1);
 const answerSchema = z.object({
   type: z.literal("choice"),
@@ -280,10 +273,22 @@ export function liveProviders(
         lane.id,
         lane.provider === "jev"
           ? createJevProvider(process.env.TYPESAFE_API_KEY ?? "", lane.model)
-          : createOpenRouterProvider(
-              process.env.OPENROUTER_API_KEY ?? "",
-              lane.model,
-            ),
+          : lane.provider === "openai"
+            ? createOpenAIProvider(process.env.OPENAI_API_KEY ?? "", lane.model)
+            : lane.provider === "anthropic"
+              ? createAnthropicProvider(
+                  process.env.ANTHROPIC_API_KEY ?? "",
+                  lane.model,
+                )
+              : lane.provider === "google"
+                ? createGoogleProvider(
+                    process.env.GOOGLE_API_KEY ?? "",
+                    lane.model,
+                  )
+                : createOpenRouterProvider(
+                    process.env.OPENROUTER_API_KEY ?? "",
+                    lane.model,
+                  ),
       ]),
   );
 }

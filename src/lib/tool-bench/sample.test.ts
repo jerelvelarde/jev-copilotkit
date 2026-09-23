@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_LANES } from "../race/types";
+import { ARENA_LANES } from "./lanes";
 import { BENCH_CASES, toCaseInput } from "./cases";
 import { createSampleProvider, sampleRankedChoices } from "./sample";
 import type { BenchDecision } from "./types";
@@ -10,7 +10,7 @@ describe("explicitly simulated arena providers", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const results: { id: string; decision: BenchDecision }[] = [];
     const pending = Promise.all(
-      DEFAULT_LANES.map((lane) =>
+      ARENA_LANES.map((lane) =>
         createSampleProvider(lane.id)(
           toCaseInput(BENCH_CASES[0]),
           new AbortController().signal,

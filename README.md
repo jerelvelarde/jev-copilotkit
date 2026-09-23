@@ -32,7 +32,11 @@ JEV_MODEL=jev-latest
 
 Jev can run alone. The other lanes clearly show that they are unavailable until you configure their provider.
 
-## Optional comparison models
+## Tool arena comparison models
+
+The tool arena uses direct provider keys: `OPENAI_API_KEY` for GPT-5.6 Luna, `ANTHROPIC_API_KEY` for Claude Sonnet 5, and `GOOGLE_API_KEY` for Gemini 3.8 Flash. Each lane runs independently; missing keys leave only that lane unavailable. Override model IDs with `OPENAI_MODEL`, `ANTHROPIC_MODEL`, and `GOOGLE_MODEL`. Live timing comes from real provider requests; sample timing is authored.
+
+## Optional Wiki Race comparison models
 
 Set `OPENROUTER_API_KEY` to enable all three LLM lanes through [OpenRouter](https://openrouter.ai). The defaults are `openai/gpt-4.1-mini`, `anthropic/claude-haiku-4.5`, and `anthropic/claude-sonnet-4.6`. Override them using `BASELINE_MODEL_1`, `BASELINE_MODEL_2`, and `BASELINE_MODEL_3`; exact model IDs appear in the interface.
 
@@ -46,7 +50,7 @@ The screenshot-inspired dark arena keeps all four racers on screen on desktop. P
 
 The frontend uses `CopilotKitProvider`, `useAgent`, and `useCopilotKit` from the published `@copilotkit/react-core/v2` entry point. Race controls invoke `copilotkit.runAgent`, and the entire board renders the agent's shared state. Stop uses `copilotkit.stopAgent`.
 
-The server registers `WikiRaceAgent` and one `ToolArenaAgent` per tool-arena lane (`tool_bench_jev`, `tool_bench_gpt`, `tool_bench_haiku`, `tool_bench_sonnet`), all AG-UI `AbstractAgent` implementations, with `CopilotRuntime`. They emit `RUN_STARTED`, successive `STATE_SNAPSHOT` events, and `RUN_FINISHED` or `RUN_ERROR`. The tool arena starts all four agents from one run specification, so each lane runs, fails, and stops independently. No chat LLM is needed to control the arenas, and there is no separate custom SSE client behind the UI.
+The server registers `WikiRaceAgent` and one `ToolArenaAgent` per tool-arena lane (`tool_bench_jev`, `tool_bench_gpt`, `tool_bench_sonnet`, `tool_bench_gemini`), all AG-UI `AbstractAgent` implementations, with `CopilotRuntime`. They emit `RUN_STARTED`, successive `STATE_SNAPSHOT` events, and `RUN_FINISHED` or `RUN_ERROR`. The tool arena starts all four agents from one run specification, so each lane runs, fails, and stops independently. No chat LLM is needed to control the arenas, and there is no separate custom SSE client behind the UI.
 
 Main files:
 

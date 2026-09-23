@@ -5,13 +5,13 @@ import {
 } from "@copilotkit/runtime/v2";
 import { handle } from "hono/vercel";
 import { WikiRaceAgent } from "@/lib/race/agent";
-import { getLaneDefinitions } from "@/lib/race/providers";
 import { ToolArenaAgent } from "@/lib/tool-bench/agent";
+import { getArenaLanes } from "@/lib/tool-bench/lanes";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 const toolAgents = Object.fromEntries(
-  getLaneDefinitions().map((lane) => [
+  getArenaLanes().map((lane) => [
     `tool_bench_${lane.id}`,
     new ToolArenaAgent(lane),
   ]),

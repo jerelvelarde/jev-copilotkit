@@ -210,10 +210,11 @@ export function ToolArenaSummary({
                 : "Live latency includes network and provider time. A single request on a small curated suite and the included cases do not establish general model performance."}
             </p>
             <p>
-              Live setup: set <code>TYPESAFE_API_KEY</code> for Jev and{" "}
-              <code>OPENROUTER_API_KEY</code> for the comparison agents in the
-              server environment, then restart. Keys stay server-side. Live mode
-              never falls back to samples.
+              Live setup: set <code>TYPESAFE_API_KEY</code>,{" "}
+              <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, and{" "}
+              <code>GOOGLE_API_KEY</code> in the server environment, then
+              restart. Keys stay server-side. Live mode never falls back to
+              samples.
             </p>
           </div>
         </details>

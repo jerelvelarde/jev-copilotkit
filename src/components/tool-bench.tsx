@@ -28,7 +28,7 @@ import {
   Waypoints,
   X,
 } from "lucide-react";
-import { DEFAULT_LANES } from "@/lib/race/types";
+import { ARENA_LANES } from "@/lib/tool-bench/lanes";
 import type { ArenaConfig, ArenaLaneState } from "@/lib/tool-bench/types";
 import { ToolArenaGraph } from "./tool-arena-graph";
 import { ToolArenaLane } from "./tool-arena-lane";
@@ -83,7 +83,7 @@ function ToolArenaBoard({
   clearConnectionError: () => void;
 }) {
   const [definitions, setDefinitions] = useState<ArenaLaneDefinition[]>(() =>
-    withAgentIds(DEFAULT_LANES),
+    withAgentIds(ARENA_LANES),
   );
   const [cases, setCases] = useState<BenchCaseOption[]>([]);
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -153,6 +153,11 @@ function ToolArenaBoard({
         setDefinitions(data.lanes);
         setCases(data.cases);
         setCaseId((current) => current || (data.cases[0]?.id ?? ""));
+        if (
+          data.lanes.length === 4 &&
+          data.lanes.every((lane) => lane.available)
+        )
+          setMode("live");
         setConfigLoaded(true);
       })
       .catch((cause: unknown) => {
@@ -188,7 +193,7 @@ function ToolArenaBoard({
     }
     if (!sample && (!configLoaded || participating === 0)) {
       setError(
-        "Set TYPESAFE_API_KEY for Jev or OPENROUTER_API_KEY for baselines on the server and restart, or select Sample.",
+        "Set a server API key for Jev, OpenAI, Anthropic, or Google and restart, or select Sample.",
       );
       return;
     }

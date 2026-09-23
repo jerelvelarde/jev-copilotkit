@@ -1,4 +1,4 @@
-import { getLaneDefinitions } from "@/lib/race/providers";
+import { getArenaLanes } from "@/lib/tool-bench/lanes";
 import { BENCH_CASES } from "@/lib/tool-bench/cases";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 export function GET() {
   return Response.json({
-    lanes: getLaneDefinitions().map((lane) => ({
+    lanes: getArenaLanes().map((lane) => ({
       ...lane,
       agentId: `tool_bench_${lane.id}`,
     })),

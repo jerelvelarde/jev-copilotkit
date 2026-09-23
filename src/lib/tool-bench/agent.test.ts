@@ -3,6 +3,7 @@ import { lastValueFrom, toArray, tap } from "rxjs";
 import { EventType, type RunAgentInput } from "@ag-ui/core";
 import { InMemoryAgentRunner } from "@copilotkit/runtime/v2";
 import { DEFAULT_LANES, type LaneDefinition } from "../race/types";
+import { ARENA_LANES } from "./lanes";
 import { BENCH_CASES } from "./cases";
 import { ToolArenaAgent } from "./agent";
 import type { ArenaLaneState } from "./types";
@@ -31,14 +32,14 @@ const snapshots = (events: { type: EventType; snapshot?: unknown }[]) =>
 describe("tool arena lane AG-UI lifecycle", () => {
   it("identifies one lane agent per provider definition", () => {
     expect(new ToolArenaAgent(lane).agentId).toBe("tool_bench_jev");
-    expect(
-      DEFAULT_LANES.map((item) => new ToolArenaAgent(item).agentId),
-    ).toEqual([
-      "tool_bench_jev",
-      "tool_bench_gpt",
-      "tool_bench_haiku",
-      "tool_bench_sonnet",
-    ]);
+    expect(ARENA_LANES.map((item) => new ToolArenaAgent(item).agentId)).toEqual(
+      [
+        "tool_bench_jev",
+        "tool_bench_gpt",
+        "tool_bench_sonnet",
+        "tool_bench_gemini",
+      ],
+    );
     const agent = new ToolArenaAgent(lane);
     expect(agent.clone()).toBeInstanceOf(ToolArenaAgent);
     expect(agent.clone()).not.toBe(agent);

@@ -20,7 +20,7 @@ export type LaneDefinition = {
   id: string;
   name: string;
   model: string;
-  provider: "jev" | "openrouter";
+  provider: "jev" | "openrouter" | "openai" | "anthropic" | "google";
   available: boolean;
   color: "mint" | "blue" | "orange" | "purple";
 };

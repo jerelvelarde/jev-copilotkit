@@ -6,6 +6,11 @@ import type { LaneDefinition } from "../race/types";
 import { executeToolCall } from "./executor";
 import { runArenaLane } from "./lane-engine";
 import { createJevProvider, createOpenRouterProvider } from "./providers";
+import {
+  createAnthropicProvider,
+  createGoogleProvider,
+  createOpenAIProvider,
+} from "./direct-providers";
 import { createSampleProvider } from "./sample";
 import { arenaConfigSchema, type ArenaConfig } from "./types";
 
@@ -17,12 +22,24 @@ const runPropsSchema = z.object({
 /** Every lane keeps its own keys server-side; nothing here reaches the client. */
 function laneProvider(lane: LaneDefinition, config: ArenaConfig) {
   if (config.mode === "sample") return createSampleProvider(lane.id);
-  return lane.provider === "jev"
-    ? createJevProvider(process.env.TYPESAFE_API_KEY ?? "", lane.model)
-    : createOpenRouterProvider(
+  switch (lane.provider) {
+    case "jev":
+      return createJevProvider(process.env.TYPESAFE_API_KEY ?? "", lane.model);
+    case "openai":
+      return createOpenAIProvider(process.env.OPENAI_API_KEY ?? "", lane.model);
+    case "anthropic":
+      return createAnthropicProvider(
+        process.env.ANTHROPIC_API_KEY ?? "",
+        lane.model,
+      );
+    case "google":
+      return createGoogleProvider(process.env.GOOGLE_API_KEY ?? "", lane.model);
+    case "openrouter":
+      return createOpenRouterProvider(
         process.env.OPENROUTER_API_KEY ?? "",
         lane.model,
       );
+  }
 }
 
 export class ToolArenaAgent extends AbstractAgent {
