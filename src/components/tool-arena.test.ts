@@ -452,12 +452,14 @@ const completedJev = (overrides: Partial<ArenaLane> = {}): ArenaLane => ({
   ...overrides,
 });
 
-const markup = (lane: ArenaLane, sample = false) =>
-  renderToStaticMarkup(createElement(ToolArenaLane, { lane, sample }));
+const markup = (lane: ArenaLane) =>
+  renderToStaticMarkup(createElement(ToolArenaLane, { lane }));
 
 describe("agent conversation lane", () => {
   it("shows the shared request, the call, the prepared result and both timers", () => {
     const html = markup(completedJev());
+    expect(html).toContain("tb-lane-complete");
+    expect(html).toContain("Complete");
     expect(html).toContain(
       "I need the item list and total for order ORD-1042.",
     );
@@ -551,8 +553,7 @@ describe("agent conversation lane", () => {
     expect(html).toContain("Lane failed");
   });
 
-  it("labels sample decisions synthetic and names the missing key when unavailable", () => {
-    expect(markup(completedJev(), true)).toContain("Synthetic");
+  it("names the missing key when unavailable", () => {
     const html = markup({
       ...state("unavailable"),
       error: "Configure TYPESAFE_API_KEY to enable live Jev.",
@@ -658,7 +659,6 @@ describe("execution graph rendering", () => {
             ],
           },
         ],
-        sample: false,
       }),
     );
     expect(html).toContain("Jev");
@@ -745,7 +745,6 @@ describe("arena summary", () => {
     const html = renderToStaticMarkup(
       createElement(ToolArenaSummary, {
         lanes: [lane("jev", true, 400), lane("gpt", false, 120)],
-        sample: false,
         complete: true,
       }),
     );
@@ -754,5 +753,25 @@ describe("arena summary", () => {
     expect(html).toContain("Highest accuracy");
     expect(html).toContain("Fastest exact call");
     expect(html).toContain("do not establish general model performance");
+  });
+
+  it("withholds the winner until every lane has settled", () => {
+    const lanes = [
+      lane("jev", true, 400),
+      lane("gpt", false, 120, { status: "running", score: null }),
+    ];
+    const inProgress = renderToStaticMarkup(
+      createElement(ToolArenaSummary, { lanes, complete: false }),
+    );
+    expect(inProgress).toContain("Winner revealed when all agents finish");
+    expect(inProgress).not.toContain("Winner: jev");
+
+    const finished = renderToStaticMarkup(
+      createElement(ToolArenaSummary, {
+        lanes: [lanes[0], { ...lanes[1], status: "complete" }],
+        complete: true,
+      }),
+    );
+    expect(finished).toContain("Winner: jev");
   });
 });

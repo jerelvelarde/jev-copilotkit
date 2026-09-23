@@ -17,7 +17,6 @@ import {
 } from "@copilotkit/react-core/v2";
 import {
   ArrowLeft,
-  FlaskConical,
   LoaderCircle,
   MessagesSquare,
   Play,
@@ -29,7 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { ARENA_LANES } from "@/lib/tool-bench/lanes";
-import type { ArenaConfig, ArenaLaneState } from "@/lib/tool-bench/types";
+import type { ArenaLaneState } from "@/lib/tool-bench/types";
 import { ToolArenaGraph } from "./tool-arena-graph";
 import { ToolArenaLane } from "./tool-arena-lane";
 import { ToolArenaSummary } from "./tool-arena-summary";
@@ -87,7 +86,6 @@ function ToolArenaBoard({
   );
   const [cases, setCases] = useState<BenchCaseOption[]>([]);
   const [configLoaded, setConfigLoaded] = useState(false);
-  const [mode, setMode] = useState<ArenaConfig["mode"]>("sample");
   const [caseId, setCaseId] = useState("");
   const [view, setView] = useState<ArenaView>("ui");
   const [run, setRun] = useState<ArenaRun | null>(null);
@@ -117,26 +115,21 @@ function ToolArenaBoard({
     );
   }, []);
 
-  const sample = (run?.config.mode ?? mode) === "sample";
-  const participating = definitions.filter(
-    (lane) => sample || lane.available,
-  ).length;
+  const participating = definitions.filter((lane) => lane.available).length;
   const laneStates = useMemo(
     () =>
       definitions.map(
         (definition) =>
-          lanes[definition.id] ?? idleArenaLane(definition, sample),
+          lanes[definition.id] ?? idleArenaLane(definition, false),
       ),
-    [definitions, lanes, sample],
+    [definitions, lanes],
   );
   const complete = Boolean(run) && isArenaComplete(laneStates);
   const running = pending || (Boolean(run) && !complete);
   const allReady = definitions.every((lane) => ready[lane.id]);
   const selectedCase = cases.find((item) => item.id === caseId) ?? null;
   const canStart =
-    allReady &&
-    Boolean(caseId) &&
-    (sample || (configLoaded && participating > 0));
+    allReady && Boolean(caseId) && configLoaded && participating > 0;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -153,11 +146,6 @@ function ToolArenaBoard({
         setDefinitions(data.lanes);
         setCases(data.cases);
         setCaseId((current) => current || (data.cases[0]?.id ?? ""));
-        if (
-          data.lanes.length === 4 &&
-          data.lanes.every((lane) => lane.available)
-        )
-          setMode("live");
         setConfigLoaded(true);
       })
       .catch((cause: unknown) => {
@@ -191,13 +179,13 @@ function ToolArenaBoard({
       setError("The arena runtime is still connecting. Try again in a moment.");
       return;
     }
-    if (!sample && (!configLoaded || participating === 0)) {
+    if (!configLoaded || participating === 0) {
       setError(
-        "Set a server API key for Jev, OpenAI, Anthropic, or Google and restart, or select Sample.",
+        "Set a server API key for Jev, OpenAI, Anthropic, or Google and restart.",
       );
       return;
     }
-    const specification = createArenaRun(mode, caseId, definitions, {
+    const specification = createArenaRun("live", caseId, definitions, {
       prompt: selectedCase?.prompt,
     });
     activeRun.current = true;
@@ -238,7 +226,6 @@ function ToolArenaBoard({
         <LaneAgent
           key={definition.agentId}
           definition={definition}
-          sample={sample}
           run={run}
           register={register}
           onState={publishLane}
@@ -260,29 +247,6 @@ function ToolArenaBoard({
           <h1>Tool-call arena</h1>
         </div>
         <div className="tb-controls">
-          <fieldset disabled={running} className="tb-mode">
-            <legend className="tb-sr-only">Arena mode</legend>
-            <button
-              aria-pressed={mode === "sample"}
-              onClick={() => {
-                setMode("sample");
-                reset();
-              }}
-            >
-              <FlaskConical size={12} />
-              Sample
-            </button>
-            <button
-              aria-pressed={mode === "live"}
-              onClick={() => {
-                setMode("live");
-                reset();
-              }}
-            >
-              <Radio size={12} />
-              Live
-            </button>
-          </fieldset>
           <label className="tb-case">
             <span className="tb-sr-only">Support request</span>
             <select
@@ -359,10 +323,8 @@ function ToolArenaBoard({
       </header>
       <div className="tb-statusline">
         <span>
-          {sample ? <FlaskConical size={12} /> : <Radio size={12} />}
-          {sample
-            ? "Sample · synthetic decisions and authored delays · not a measurement"
-            : `Live · ${participating}/${definitions.length} agents configured · tools run locally`}
+          <Radio size={12} />
+          {`Live · ${participating}/${definitions.length} agents configured · tools run locally`}
         </span>
         <span role="status" aria-live="polite">
           {running
@@ -396,7 +358,7 @@ function ToolArenaBoard({
           aria-label="Four agent conversations"
         >
           {laneStates.map((lane) => (
-            <ToolArenaLane key={lane.id} lane={lane} sample={sample} />
+            <ToolArenaLane key={lane.id} lane={lane} />
           ))}
           {!run && (
             <div className="tb-launch">
@@ -409,21 +371,17 @@ function ToolArenaBoard({
                 {allReady ? "Start the race" : "Connecting…"}
               </button>
               <span>
-                {!sample && participating === 0
-                  ? "Configure an agent or select Sample"
+                {participating === 0
+                  ? "Configure an agent to start"
                   : `${participating} agents · 1 request · local tools`}
               </span>
             </div>
           )}
         </section>
       ) : (
-        <ToolArenaGraph lanes={laneStates} sample={sample} />
+        <ToolArenaGraph lanes={laneStates} />
       )}
-      <ToolArenaSummary
-        lanes={laneStates}
-        sample={sample}
-        complete={complete}
-      />
+      <ToolArenaSummary lanes={laneStates} complete={complete} />
     </main>
   );
 }
@@ -434,7 +392,6 @@ function ToolArenaBoard({
  */
 function LaneAgent({
   definition,
-  sample,
   run,
   register,
   onState,
@@ -442,7 +399,6 @@ function LaneAgent({
   onError,
 }: {
   definition: ArenaLaneDefinition;
-  sample: boolean;
   run: ArenaRun | null;
   register: (controller: ArenaController) => () => void;
   onState: (lane: ArenaLane) => void;
@@ -456,8 +412,8 @@ function LaneAgent({
   const cancelled = useRef(false);
 
   const idle = useMemo<ArenaLane>(
-    () => idleArenaLane(definition, sample),
-    [definition, sample],
+    () => idleArenaLane(definition, false),
+    [definition],
   );
   const base = useMemo<ArenaLane>(
     () => run?.lanes.find((item) => item.id === definition.id) ?? idle,

@@ -37,18 +37,12 @@ function phaseLabel(lane: ArenaLaneState) {
   return "Waiting for the race to start";
 }
 
-export function ToolArenaLane({
-  lane,
-  sample,
-}: {
-  lane: ArenaLaneState;
-  sample: boolean;
-}) {
+export function ToolArenaLane({ lane }: { lane: ArenaLaneState }) {
   const active = lane.status === "running";
   const choices = lane.decision?.choices ?? [];
   return (
     <article
-      className={`tb-lane tb-color-${lane.id} ${active ? "tb-lane-active" : ""}`}
+      className={`tb-lane tb-color-${lane.id} ${active ? "tb-lane-active" : ""} ${lane.status === "complete" ? "tb-lane-complete" : ""}`}
       aria-label={`${lane.name} CopilotKit agent`}
     >
       <header className="tb-lane-header">
@@ -59,6 +53,8 @@ export function ToolArenaLane({
               <LoaderCircle size={11} className="spin" />
             ) : lane.status === "error" ? (
               <TriangleAlert size={11} />
+            ) : lane.status === "complete" ? (
+              <Check size={12} strokeWidth={2.5} />
             ) : (
               <span className="tb-status-dot" />
             )}
@@ -86,7 +82,7 @@ export function ToolArenaLane({
             <div className="tb-call-card">
               <div className="tb-call-heading">
                 <span>
-                  {sample ? "Synthetic tool call" : "Tool call"}
+                  Tool call
                   {` · ${benchTime(lane.timings.decisionMs)}`}
                 </span>
                 <span

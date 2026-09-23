@@ -15,23 +15,13 @@ const statusLabels = {
   cancelled: "cancelled",
 };
 
-export function ToolArenaGraph({
-  lanes,
-  sample,
-}: {
-  lanes: ArenaLaneState[];
-  sample: boolean;
-}) {
+export function ToolArenaGraph({ lanes }: { lanes: ArenaLaneState[] }) {
   const scale = Math.max(1, ...lanes.map((lane) => lane.timings.totalMs));
   return (
     <section className="tb-graph" aria-label="Execution trace">
       <div className="tb-graph-heading">
         <h2>Prompt → Decision → Tool → UI</h2>
-        <span>
-          {sample
-            ? "Synthetic decisions on a shared axis · authored delays"
-            : `Shared time axis · ${benchTime(scale)} full scale`}
-        </span>
+        <span>{`Shared time axis · ${benchTime(scale)} full scale`}</span>
       </div>
       <div
         className="tb-graph-viewport"

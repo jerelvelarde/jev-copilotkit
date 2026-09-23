@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Gauge, Info, Target } from "lucide-react";
+import { ChevronDown, Gauge, Info, Target, Trophy } from "lucide-react";
 import type { ArenaLaneState } from "../lib/tool-bench/types";
 import { benchTime } from "./tool-bench-metrics";
 
@@ -79,11 +79,9 @@ function Outcome({
 
 export function ToolArenaSummary({
   lanes,
-  sample,
   complete,
 }: {
   lanes: ArenaLaneState[];
-  sample: boolean;
   complete: boolean;
 }) {
   const summary = summarizeArena(lanes);
@@ -93,30 +91,60 @@ export function ToolArenaSummary({
   const fastestMs = exactLanes.length
     ? Math.min(...exactLanes.map((lane) => lane.timings.totalMs))
     : null;
+  const winnerId = exactLanes.find(
+    (lane) => lane.timings.totalMs === fastestMs,
+  )?.id;
   return (
     <section className="tb-metrics" aria-label="Arena results">
       <div className="tb-metrics-heading">
-        <h2>{sample ? "Sample results" : "Results this race"}</h2>
+        <h2>Results this race</h2>
         <span>
           {complete
             ? `${summary.completed}/${summary.available} agents completed`
             : "Waiting for the race to finish"}
         </span>
       </div>
-      <div className="tb-outcomes">
-        <Outcome
-          icon={Target}
-          title="Highest accuracy"
-          names={summary.highestAccuracy}
-          detail="Exact tool and arguments on this request"
-        />
-        <Outcome
-          icon={Gauge}
-          title="Fastest exact call"
-          names={summary.fastestExact}
-          detail={fastestMs === null ? null : `${benchTime(fastestMs)} total`}
-        />
-      </div>
+      {complete ? (
+        <div className="tb-results-reveal" role="status" aria-live="polite">
+          <div
+            className={`tb-winner ${winnerId ? `tb-color-${winnerId}` : ""}`}
+          >
+            <span className="tb-outcome-title">
+              <Trophy size={15} aria-hidden="true" /> Winner
+            </span>
+            <strong>
+              {summary.fastestExact.length
+                ? `Winner: ${summary.fastestExact.join(" · ")}`
+                : "No exact-call winner"}
+            </strong>
+            <small>
+              {fastestMs === null
+                ? "No agent finished with the exact tool and arguments."
+                : `Fastest exact call · ${benchTime(fastestMs)} total`}
+            </small>
+          </div>
+          <div className="tb-outcomes">
+            <Outcome
+              icon={Target}
+              title="Highest accuracy"
+              names={summary.highestAccuracy}
+              detail="Exact tool and arguments on this request"
+            />
+            <Outcome
+              icon={Gauge}
+              title="Fastest exact call"
+              names={summary.fastestExact}
+              detail={
+                fastestMs === null ? null : `${benchTime(fastestMs)} total`
+              }
+            />
+          </div>
+        </div>
+      ) : (
+        <p className="tb-winner-pending" role="status">
+          Winner revealed when all agents finish
+        </p>
+      )}
       <div
         className="tb-table-scroll"
         role="region"
@@ -168,9 +196,8 @@ export function ToolArenaSummary({
       </div>
       <footer className="tb-footer">
         <span>
-          {sample
-            ? "Sample decisions are synthetic and their delays are authored. Switch to Live for real provider requests."
-            : "Accuracy and speed are reported separately; local tools are deterministic and side-effect free."}
+          Accuracy and speed are reported separately; local tools are
+          deterministic and side-effect free.
         </span>
         <details className="tb-methodology">
           <summary>
@@ -182,9 +209,9 @@ export function ToolArenaSummary({
               candidates, evaluation rules and local tool implementations. Jev
               selects the tool and each constrained argument through typed
               Choice questions in one request; the comparison models use native
-              function calling through OpenRouter. These integration formats
-              differ and are disclosed rather than presented as one protocol.
-              Expected labels never reach a provider input.
+              function calling through their native APIs. These integration
+              formats differ and are disclosed rather than presented as one
+              protocol. Expected labels never reach a provider input.
             </p>
             <p>
               <strong>Decision</strong> runs from request dispatch to a valid
@@ -205,16 +232,15 @@ export function ToolArenaSummary({
               result. Fastest is computed only among exact completed lanes.
             </p>
             <p>
-              {sample
-                ? "Sample answers are authored and each lane's delay is a fixed authored value. Sample timings demonstrate the race; they are not provider measurements."
-                : "Live latency includes network and provider time. A single request on a small curated suite and the included cases do not establish general model performance."}
+              Live latency includes network and provider time. A single request
+              on a small curated suite and the included cases do not establish
+              general model performance.
             </p>
             <p>
               Live setup: set <code>TYPESAFE_API_KEY</code>,{" "}
               <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, and{" "}
               <code>GOOGLE_API_KEY</code> in the server environment, then
-              restart. Keys stay server-side. Live mode never falls back to
-              samples.
+              restart. Keys stay server-side.
             </p>
           </div>
         </details>

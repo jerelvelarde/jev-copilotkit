@@ -50,7 +50,6 @@
 .tb-actions {
   gap: 13px;
 }
-.tb-mode,
 .tb-view {
   display: flex;
   gap: 2px;
@@ -59,7 +58,6 @@
   border: 1px solid var(--line);
   border-radius: 4px;
 }
-.tb-mode button,
 .tb-view button {
   display: flex;
   align-items: center;
@@ -70,18 +68,13 @@
   font-size: 12px;
   color: var(--muted);
 }
-.tb-mode button[aria-pressed="true"],
 .tb-view button[aria-pressed="true"] {
   background: #493347;
   color: #f7cbed;
 }
-.tb-mode button:focus-visible,
 .tb-view button:focus-visible {
   outline: 2px solid var(--jev);
   outline-offset: 1px;
-}
-.tb-mode:disabled {
-  opacity: 0.65;
 }
 .tb-case select {
   max-width: 190px;
@@ -217,6 +210,16 @@
 .tb-lane-active {
   border-color: color-mix(in srgb, var(--tb-color) 55%, var(--line));
 }
+.tb-lane-complete {
+  border-color: var(--tb-color) !important;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--tb-color) 55%, transparent),
+    0 0 18px color-mix(in srgb, var(--tb-color) 18%, transparent);
+}
+.tb-lane-complete .tb-lane-header {
+  background: color-mix(in srgb, var(--tb-color) 16%, #2b2b2e);
+  border-bottom-color: color-mix(in srgb, var(--tb-color) 45%, var(--line));
+}
 .tb-lane-header {
   padding: 9px 12px 8px;
   background: #2b2b2e;
@@ -245,6 +248,12 @@
 }
 .tb-status-complete {
   color: var(--tb-color);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 2px 6px;
+  background: color-mix(in srgb, var(--tb-color) 12%, transparent);
+  font-weight: 700;
+  text-transform: uppercase;
 }
 .tb-status-error {
   color: #fca5af;
@@ -712,6 +721,33 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
   margin-bottom: 10px;
+}
+.tb-winner {
+  padding: 12px 15px;
+  margin-bottom: 8px;
+  border: 1px solid var(--tb-color, var(--line));
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--tb-color, var(--line)) 13%, #26262b);
+}
+.tb-winner strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+  line-height: 1.25;
+}
+.tb-winner small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.tb-winner-pending {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px dashed #56515b;
+  border-radius: 3px;
+  color: var(--muted);
+  font: 11px/1.5 var(--mono);
 }
 .tb-outcome {
   padding: 8px 11px;
