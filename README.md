@@ -16,14 +16,14 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Open [localhost:3000](http://localhost:3000). **Sample mode works without keys.** Its routes, article introductions, and delays are authored illustrations—not recorded model runs, verified Wikipedia routes, or benchmark results. Four preset challenges demonstrate the interface. Sample mode never calls an AI provider.
+Open [localhost:3000](http://localhost:3000). Both arenas run live provider requests. Configure at least one provider key before starting; lanes without a key remain visibly unavailable.
 
 ## Enable live Jev
 
 1. Open the [TypeSafe console](https://console.typesafe.ai) and sign in. If your account needs early-access approval, complete that flow first.
 2. Create an API key through the account's API-key controls once access is enabled. See the [official quickstart](https://docs.typesafe.ai/introduction/quickstart).
 3. Add `TYPESAFE_API_KEY` to the ignored `.env.local` file. Keep it server-side and out of chat, screenshots, logs, and git. A process-injected environment variable works too.
-4. Restart the dev server, reload the app, and select **Live**.
+4. Restart the dev server and reload the app.
 
 ```dotenv
 TYPESAFE_API_KEY=your-key-here
@@ -32,19 +32,15 @@ JEV_MODEL=jev-latest
 
 Jev can run alone. The other lanes clearly show that they are unavailable until you configure their provider.
 
-## Tool arena comparison models
+## Comparison models
 
-The tool arena uses direct provider keys: `OPENAI_API_KEY` for GPT-5.6 Luna, `ANTHROPIC_API_KEY` for Claude Sonnet 5, and `GOOGLE_API_KEY` for Gemini 3.8 Flash. Each lane runs independently; missing keys leave only that lane unavailable. Override model IDs with `OPENAI_MODEL`, `ANTHROPIC_MODEL`, and `GOOGLE_MODEL`. Live timing comes from real provider requests; sample timing is authored.
-
-## Optional Wiki Race comparison models
-
-Set `OPENROUTER_API_KEY` to enable all three LLM lanes through [OpenRouter](https://openrouter.ai). The defaults are `openai/gpt-4.1-mini`, `anthropic/claude-haiku-4.5`, and `anthropic/claude-sonnet-4.6`. Override them using `BASELINE_MODEL_1`, `BASELINE_MODEL_2`, and `BASELINE_MODEL_3`; exact model IDs appear in the interface.
+Both arenas use direct provider keys: `OPENAI_API_KEY` for GPT-5.6 Luna, `ANTHROPIC_API_KEY` for Claude Sonnet 5, and `GOOGLE_API_KEY` for Gemini 3.8 Flash. Each lane runs independently; missing keys leave only that lane unavailable. Override model IDs with `OPENAI_MODEL`, `ANTHROPIC_MODEL`, and `GOOGLE_MODEL`. Timing comes from real provider requests.
 
 These are configurable baselines, **not the exact benchmark setup in the source video**. Live runs use your provider balance. The app does not estimate costs from missing usage or promise a speed advantage.
 
 ## Race arena
 
-The screenshot-inspired dark arena keeps all four racers on screen on desktop. Press **Go!** to start; use **Setup** for the course, Sample/Live mode, and hop limit. The top clock tracks elapsed race time, while the bottom bars compare model time. Each pane retains its article trail and previous decisions after completion. Narrow screens stack the panels.
+The screenshot-inspired dark arena keeps all four racers on screen on desktop. Press **Go!** to start; use **Setup** for the course and hop limit. Each lane highlights **Complete** when it reaches the destination. After all lanes settle, the fastest finisher is revealed as the winner. The top clock tracks elapsed race time, while the bottom bars compare model time. Each pane retains its article trail and previous decisions after completion. Narrow screens stack the panels.
 
 ## How CopilotKit is used
 
@@ -55,13 +51,12 @@ The server registers `WikiRaceAgent` and one `ToolArenaAgent` per tool-arena lan
 Main files:
 
 - [Race engine](src/lib/race/engine.ts): legal moves, cancellation, deadlines, visited-page tracking, per-lane state, and race-local caching.
-- [Wikipedia integration](src/lib/race/wikipedia.ts): canonical page IDs, introductions, article links, and complete pagination.
-- [Model adapters](src/lib/race/providers.ts): Jev's typed decisions and optional OpenRouter responses.
+- [Wikipedia integration](src/lib/race/wikipedia.ts): canonical page IDs, introductions, and article links from one MediaWiki REST page request.
+- [Model adapters](src/lib/race/providers.ts): Jev's typed decisions and native OpenAI, Anthropic, and Google link-choice calls.
 - [CopilotKit agent](src/lib/race/agent.ts): engine-to-AG-UI connection.
-- [Sample environment](src/lib/race/sample.ts): clearly synthetic, credential-free demonstration.
 - [Arena lane engine](src/lib/tool-bench/lane-engine.ts): one decision, one tool execution, the normalized event timeline, exact scoring, cancellation, and per-lane deadlines.
 - [Local tool executor](src/lib/tool-bench/executor.ts): strict argument schemas and deterministic, side-effect-free tool results.
-- [Tool benchmark adapters](src/lib/tool-bench/providers.ts): typed Jev questions and native OpenRouter function calls.
+- [Tool benchmark adapters](src/lib/tool-bench/providers.ts): typed Jev questions and direct provider function calls.
 - [Labeled support cases](src/lib/tool-bench/cases.ts): the versioned `support-v1` dataset.
 
 ## Tool-call arena
@@ -75,9 +70,9 @@ Open `/tool-bench`, pick one support request, and press **Start the race**. Four
 
 The six tools cover order lookup, shipment tracking, refunds, subscription cancellation, support tickets, and human escalation. They execute in memory, are deterministic, and have no side effects: no refunds, cancellations, or external calls happen. A provider can influence which tool runs, never what the result card renders.
 
-Switch between **UI** and **Graph** without restarting. The graph draws one `Prompt → Decision → Tool → UI` trace per agent on a shared time axis, with each node repeating its phase, status, and duration as text so it stays readable without color. **Stop** aborts every running agent and keeps the completed events visible.
+Switch between **UI** and **Graph** without restarting. The graph draws one `Prompt → Decision → Tool → UI` trace per agent on a shared time axis, with each node repeating its phase, status, and duration as text so it stays readable without color. Each panel highlights **Complete** when it finishes; the fastest exact-call winner appears after all lanes settle. **Stop** aborts every running agent and keeps the completed events visible.
 
-Jev selects the tool and candidate-bound argument fields in one request using typed Choice questions. The comparison models use native function calling through OpenRouter. They receive the same tool descriptions, entity candidates, and support request; labeled answers are excluded from every provider input. This compares two practical integration approaches, not identical model protocols.
+Jev selects the tool and candidate-bound argument fields in one request using typed Choice questions. The comparison models use native function calling through their direct APIs. They receive the same tool descriptions, entity candidates, and support request; labeled answers are excluded from every provider input. This compares two practical integration approaches, not identical model protocols.
 
 **Timing boundaries**
 
@@ -89,9 +84,8 @@ Jev selects the tool and candidate-bound argument fields in one request using ty
 **Scoring**
 
 - **Tool accuracy** checks the selected tool name; **exact-call accuracy** also requires every argument key and value, with no extra or missing arguments.
-- The summary names the highest-accuracy lane and the fastest **exact** lane separately, and never combines accuracy and latency into a composite. A faster incorrect lane wins nothing. Ties list every tied agent.
+- After every lane settles, the summary names the fastest **exact** lane as winner and reports accuracy separately. A faster incorrect lane wins nothing. Ties list every tied agent.
 - A provider failure, an unknown tool, or invalid arguments ends that lane as a visible error with no fabricated result. One failing lane never stops the other three.
-- **Sample** mode replays authored answers behind fixed per-lane delays so the race is visible. Sample decisions and timings are synthetic, labeled as such in the interface, and are never a provider measurement.
 
 This is a small, curated demonstration. It is useful for inspecting behavior and recording a demo. A single request on this suite does not establish general model performance.
 
@@ -101,11 +95,11 @@ This is a small, curated demonstration. It is useful for inspecting behavior and
 - The target is reached only when its canonical ID matches. Direct target links are followed deterministically by **every** lane and are marked `direct` in the trace; no inference is billed for that move.
 - Visited articles are excluded. A redirect back to a visited page terminates that lane. There is no hidden search, lookahead, backtracking, or cached winning route in Live mode.
 - Jev accepts at most 255 choices. Larger link sets are all scored with independent Noul questions in batches of 128 (up to three batches concurrently); the top 255 enter a final Choice call. Ties retain source order. LLM baselines receive the full available set and return one validated index. The policies differ and are disclosed rather than presented as a controlled benchmark.
-- Wikipedia retrieval is capped at 5,000 links per article and 20 pagination calls. An oversized article fails explicitly; the app never silently drops the rest of its links.
+- Wikipedia retrieval uses one MediaWiki REST page-with-HTML response and is capped at 5,000 links per article. An oversized article fails explicitly; the app never silently drops the rest of its links. Transient rate limits receive bounded retries.
 - All lanes start after the same start/target setup. The setup duration is separate. A cache shared only within each race prevents repeated Wikipedia fetches; later lanes can benefit from earlier reads. Cached data is not a shortest-path solver.
 - **Elapsed time** covers a lane's full run after setup. **Model time** measures wall-clock time in its decision adapter, including all scoring and choice requests. Parallel scoring times are not added together. Wikipedia wait time is tracked separately. Network conditions, caching, and hop count all affect the results.
-- Confidence is shown only when a provider returns it. OpenRouter and sample mode do not fabricate confidence. Jev confidence is not proof that a link is optimal.
-- Races default to 12 hops (maximum 20), have a 90-second overall deadline, and can be stopped. Wikipedia requests time out after 12 seconds; model requests after 20 seconds. Live errors remain errors and never become sample results.
+- Confidence is shown only when a provider returns it. The direct comparison models do not fabricate confidence. Jev confidence is not proof that a link is optimal.
+- Races default to 12 hops (maximum 20), have a 90-second overall deadline, and can be stopped. Wikipedia requests time out after 12 seconds; model requests have provider-specific timeouts. Provider and Wikipedia errors remain visible.
 
 ## Verification
 
@@ -117,10 +111,10 @@ pnpm format:check
 pnpm build
 ```
 
-Tests cover legal and invalid moves, redirects, cycles, hop/deadline limits, cancellation, lane isolation, Wikipedia pagination, provider schema validation, Jev's two-stage selection, and an entire sample race through the AG-UI agent. Tool arena tests cover exact argument scoring, label exclusion, native-call contracts, strict local tool schemas and their typed results, event ordering and phase durations, provider/tool/deadline/cancellation outcomes, per-lane agent identity, cancellation through the actual agent runner, independent lane failure during a synchronized launch, the UI-commit overlay, trace geometry, the race clock, conversation and result rendering, and the accuracy/speed summary.
+Tests cover legal and invalid moves, redirects, cycles, hop/deadline limits, cancellation, lane isolation, Wikipedia page parsing and rate-limit retries, provider schema validation, Jev's two-stage selection, native provider link calls, and the AG-UI agent lifecycle. Tool arena tests cover exact argument scoring, label exclusion, native-call contracts, strict local tool schemas and their typed results, event ordering and phase durations, provider/tool/deadline/cancellation outcomes, per-lane agent identity, cancellation through the actual agent runner, independent lane failure during a synchronized launch, the UI-commit overlay, trace geometry, the race clock, conversation and result rendering, and the accuracy/speed summary.
 
 This is a local prototype, served on `127.0.0.1` by default. Before public hosting, add authentication, per-user quotas, persistence, and a suitable deployment timeout. Do not expose a credential-backed demo endpoint without access controls.
 
 ## Credits
 
-[CopilotKit](https://www.copilotkit.ai) provides the agent–UI connection. [TypeSafe](https://typesafe.ai) provides Jev. Live article text and links come from [Wikipedia](https://en.wikipedia.org), with source links retained in the UI; text is available under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Sample introductions are locally authored. This project is an independent recreation, not an official benchmark from TypeSafe or Wikimedia.
+[CopilotKit](https://www.copilotkit.ai) provides the agent–UI connection. [TypeSafe](https://typesafe.ai) provides Jev. Live article text and links come from [Wikipedia](https://en.wikipedia.org), with source links retained in the UI; text is available under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). This project is an independent recreation, not an official benchmark from TypeSafe or Wikimedia.

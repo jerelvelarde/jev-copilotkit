@@ -11,7 +11,6 @@ import {
 import {
   ArrowRight,
   Flag,
-  FlaskConical,
   LoaderCircle,
   Radio,
   RotateCcw,
@@ -38,6 +37,7 @@ import {
 
 import { RaceSetup } from "./race-setup";
 import { RaceClock, RaceTimeline } from "./race-metrics";
+import { RaceWinner } from "./race-winner";
 
 export function WikiRace() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -65,7 +65,10 @@ function RaceBoard({
 }) {
   const { agent, isReady } = useAgent({ agentId: "wiki_race" });
   const { copilotkit } = useCopilotKit();
-  const [config, setConfig] = useState<RaceConfig>(DEFAULT_CONFIG);
+  const [config, setConfig] = useState<RaceConfig>({
+    ...DEFAULT_CONFIG,
+    mode: "live",
+  });
   const [setupOpen, setSetupOpen] = useState(false);
   const [definitions, setDefinitions] =
     useState<LaneDefinition[]>(DEFAULT_LANES);
@@ -82,10 +85,7 @@ function RaceBoard({
     initialRace(config, definitions),
   );
   const running = pending || race.status === "running";
-  const sample = config.mode === "sample";
-  const readyLanes = definitions.filter(
-    (lane) => sample || lane.available,
-  ).length;
+  const readyLanes = definitions.filter((lane) => lane.available).length;
   const finished = race.lanes
     .filter((lane) => lane.status === "finished")
     .sort((a, b) => a.elapsedMs - b.elapsedMs);
@@ -136,9 +136,7 @@ function RaceBoard({
       return;
     }
     if (readyLanes === 0) {
-      setError(
-        "Add a Jev or OpenRouter API key to run a live race, or select Sample.",
-      );
+      setError("Add a provider API key to run a live race.");
       return;
     }
     const next = initialRace(parsed.data, definitions);
@@ -146,7 +144,7 @@ function RaceBoard({
     next.status = "running";
     next.lanes = next.lanes.map((lane) => ({
       ...lane,
-      status: sample || lane.available ? "loading" : "unavailable",
+      status: lane.available ? "loading" : "unavailable",
     }));
     activeRun.current = true;
     cancelled.current = false;
@@ -184,7 +182,7 @@ function RaceBoard({
     setStoppedState(interruptRace(race));
   }
 
-  const canStart = isReady && (sample || (configLoaded && readyLanes > 0));
+  const canStart = isReady && configLoaded && readyLanes > 0;
   const idle = !race.runId;
 
   return (
@@ -247,10 +245,8 @@ function RaceBoard({
 
       <div className="arena-statusline">
         <span className="mode-disclosure">
-          {sample ? <FlaskConical size={12} /> : <Radio size={12} />}
-          {sample
-            ? "Sample · scripted paths and simulated timings"
-            : `Live · ${readyLanes} of ${definitions.length} models configured`}
+          <Radio size={12} />
+          {`Live · ${readyLanes} of ${definitions.length} models configured`}
         </span>
         <span className="arena-race-status" role="status" aria-live="polite">
           {running
@@ -294,7 +290,7 @@ function RaceBoard({
             lane={lane}
             config={stateConfig}
             place={
-              lane.status === "finished"
+              race.status === "complete" && lane.status === "finished"
                 ? finished.findIndex((item) => item.id === lane.id) + 1
                 : null
             }
@@ -318,12 +314,13 @@ function RaceBoard({
               className="back-to-setup"
               onClick={() => setSetupOpen(true)}
             >
-              {!sample && readyLanes === 0 ? "Connect models" : "Back to setup"}
+              {readyLanes === 0 ? "Connect models" : "Back to setup"}
             </button>
           </div>
         )}
       </section>
 
+      {race.runId && <RaceWinner race={race} finished={finished} />}
       <RaceTimeline race={race} />
       <RaceSetup
         open={setupOpen}

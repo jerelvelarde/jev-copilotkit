@@ -65,28 +65,19 @@ export function RaceClock({
       >
         {clockText(elapsedMs)}
       </span>
-      <span className="arena-clock-label">
-        {race.config.mode === "sample"
-          ? "Sample race time"
-          : "Race elapsed time"}
-      </span>
+      <span className="arena-clock-label">Race elapsed time</span>
     </div>
   );
 }
 
 export function RaceTimeline({ race }: { race: RaceState }) {
   const largestMs = Math.max(1, ...race.lanes.map((lane) => lane.modelMs));
-  const sample = race.config.mode === "sample";
 
   return (
     <section className="arena-timeline" aria-label="Model request times">
       <div className="arena-timeline-header">
         <h2>Model time</h2>
-        <span>
-          {sample
-            ? "Simulated · sample illustration"
-            : "Measured · model requests only"}
-        </span>
+        <span>Measured · model requests only</span>
       </div>
       <div className="arena-timeline-rows">
         {race.lanes.map((lane) => (
@@ -106,33 +97,25 @@ export function RaceTimeline({ race }: { race: RaceState }) {
               />
             </span>
             <span className="arena-timeline-value">
-              {!sample && !lane.available
-                ? "Not configured"
-                : modelTime(lane.modelMs)}
+              {!lane.available ? "Not configured" : modelTime(lane.modelMs)}
             </span>
           </div>
         ))}
       </div>
       <div className="arena-timeline-footer">
         <span>
-          {sample ? "Scripted article previews." : "Article content from "}
-          {!sample && (
-            <a href="https://en.wikipedia.org" target="_blank" rel="noreferrer">
-              Wikipedia
-            </a>
-          )}{" "}
-          {!sample && (
-            <>
-              ·{" "}
-              <a
-                href="https://creativecommons.org/licenses/by-sa/4.0/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                CC BY-SA 4.0
-              </a>
-            </>
-          )}
+          Article content from{" "}
+          <a href="https://en.wikipedia.org" target="_blank" rel="noreferrer">
+            Wikipedia
+          </a>{" "}
+          ·{" "}
+          <a
+            href="https://creativecommons.org/licenses/by-sa/4.0/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            CC BY-SA 4.0
+          </a>
         </span>
         <details className="arena-timeline-methodology">
           <summary>
@@ -142,11 +125,9 @@ export function RaceTimeline({ race }: { race: RaceState }) {
           </summary>
           <div>
             <p>
-              Sample courses and timings are authored illustrations, not
-              recorded inference or verified Wikipedia routes. Live model time
-              measures API requests; the race clock includes article retrieval
-              and other waiting. Wikipedia pages use a cache shared by the lanes
-              within each race.
+              Model time measures API requests; the race clock includes article
+              retrieval and other waiting. Wikipedia pages use a cache shared by
+              the lanes within each race.
             </p>
             <p>
               Jev chooses among up to 255 links, ranking larger sets in batches

@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { createJevProvider, createOpenRouterProvider } from "./providers";
+import {
+  createAnthropicWikiProvider,
+  createGoogleWikiProvider,
+  createJevProvider,
+  createOpenAIWikiProvider,
+  createOpenRouterProvider,
+} from "./providers";
 import { type DecisionContext } from "./types";
 const context: DecisionContext = {
   page: { id: 1, title: "Start", extract: "Start", url: "", links: ["Bridge"] },
@@ -113,5 +119,85 @@ describe("comparison provider", () => {
     const provider = createOpenRouterProvider("test-key", "model", fetcher);
     expect((await provider(context, signal)).confidence).toBeNull();
     await expect(provider(context, signal)).rejects.toThrow();
+  });
+});
+
+describe("native wiki comparison providers", () => {
+  it("accepts one indexed OpenAI tool call", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        output: [
+          {
+            type: "function_call",
+            name: "choose_link",
+            arguments: '{"index":0}',
+          },
+        ],
+        usage: { input_tokens: 21 },
+      }),
+    );
+    const result = await createOpenAIWikiProvider(
+      "key",
+      "model",
+      fetcher,
+    )(context, signal);
+    expect(result).toMatchObject({
+      title: "Bridge",
+      inputTokens: 21,
+      modelCalls: 1,
+    });
+    const body = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+    expect(body.tools[0].parameters.properties.index.maximum).toBe(0);
+    expect(body.input).toContain("Bridge");
+  });
+
+  it("accepts Anthropic's native tool use and rejects an invented index", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          content: [
+            { type: "tool_use", name: "choose_link", input: { index: 0 } },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          content: [
+            { type: "tool_use", name: "choose_link", input: { index: 2 } },
+          ],
+        }),
+      );
+    const provider = createAnthropicWikiProvider("key", "model", fetcher);
+    expect((await provider(context, signal)).title).toBe("Bridge");
+    await expect(provider(context, signal)).rejects.toThrow(
+      "outside the offered list",
+    );
+  });
+
+  it("accepts Gemini's native function call", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        candidates: [
+          {
+            content: {
+              parts: [
+                { functionCall: { name: "choose_link", args: { index: 0 } } },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    const result = await createGoogleWikiProvider(
+      "key",
+      "model",
+      fetcher,
+    )(context, signal);
+    expect(result.title).toBe("Bridge");
+    const body = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+    expect(body.tools[0].functionDeclarations[0].parameters).not.toHaveProperty(
+      "additionalProperties",
+    );
   });
 });

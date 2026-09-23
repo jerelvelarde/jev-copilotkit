@@ -1,4 +1,5 @@
 import { abortable } from "../cancellation";
+import { arenaKeyName } from "../tool-bench/lanes";
 import {
   initialRace,
   normalizeTitle,
@@ -37,10 +38,7 @@ export async function runRace(
   for (const lane of state.lanes) {
     lane.status = dependencies.providers[lane.id] ? "loading" : "unavailable";
     if (lane.status === "unavailable")
-      lane.error =
-        lane.provider === "jev"
-          ? "Add TYPESAFE_API_KEY to .env.local to enable Jev."
-          : "Add OPENROUTER_API_KEY to .env.local to enable comparison models.";
+      lane.error = `Add ${arenaKeyName(lane)} to .env.local to enable ${lane.name}.`;
   }
   emit();
   if (state.lanes.every((l) => l.status === "unavailable")) {

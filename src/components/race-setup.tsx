@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ArrowRight, Flag, FlaskConical, Radio, X } from "lucide-react";
+import { ArrowRight, Flag, X } from "lucide-react";
 import { raceConfigSchema, type RaceConfig } from "@/lib/race/types";
 
 type RaceSetupProps = {
@@ -29,7 +29,6 @@ export function RaceSetup({
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
   const [error, setError] = useState<string | null>(null);
-  const sample = config.mode === "sample";
 
   useEffect(() => {
     const element = dialog.current;
@@ -41,18 +40,6 @@ export function RaceSetup({
   function update(next: RaceConfig) {
     setError(null);
     onConfigChange(next);
-  }
-
-  function changeMode(mode: RaceConfig["mode"]) {
-    const hasSample = PRESETS.some(
-      (preset) =>
-        preset.start === config.start && preset.target === config.target,
-    );
-    update({
-      ...config,
-      ...(mode === "sample" && !hasSample ? PRESETS[0] : {}),
-      mode,
-    });
   }
 
   return (
@@ -103,27 +90,6 @@ export function RaceSetup({
           </button>
         </header>
 
-        <div className="arena-setup-mode" role="group" aria-label="Race mode">
-          <button
-            type="button"
-            className={sample ? "arena-mode-active" : ""}
-            aria-pressed={sample}
-            onClick={() => changeMode("sample")}
-          >
-            <FlaskConical size={14} />
-            Sample
-          </button>
-          <button
-            type="button"
-            className={!sample ? "arena-mode-active" : ""}
-            aria-pressed={!sample}
-            onClick={() => changeMode("live")}
-          >
-            <Radio size={14} />
-            Live
-          </button>
-        </div>
-
         <div className="arena-setup-route">
           <label className="arena-setup-field" htmlFor={`${id}-start`}>
             <span>Starting article</span>
@@ -133,7 +99,6 @@ export function RaceSetup({
               onChange={(event) =>
                 update({ ...config, start: event.target.value })
               }
-              readOnly={sample}
               required
               maxLength={200}
               autoComplete="off"
@@ -153,7 +118,6 @@ export function RaceSetup({
               onChange={(event) =>
                 update({ ...config, target: event.target.value })
               }
-              readOnly={sample}
               required
               maxLength={200}
               autoComplete="off"
@@ -190,30 +154,19 @@ export function RaceSetup({
         </div>
 
         <p className="arena-setup-note">
-          {sample ? (
-            <>
-              <strong>Sample mode.</strong> These four preset courses use
-              scripted paths and simulated timings. They illustrate the
-              interface; they are not verified Wikipedia routes or model
-              benchmarks.
-            </>
-          ) : (
-            <>
-              <strong>Live mode.</strong> Choose any two English Wikipedia
-              articles. Models follow real article links, and request times are
-              measured. {readyLanes} of 4 models are configured.
-            </>
-          )}
+          <strong>Live race.</strong> Choose any two English Wikipedia articles.
+          Models follow real article links, and request times are measured.{" "}
+          {readyLanes} of 4 models are configured.
         </p>
-        {!sample && readyLanes < 4 && (
+        {readyLanes < 4 && (
           <p className="arena-setup-note">
-            To connect models, add <code>TYPESAFE_API_KEY</code> for Jev or{" "}
-            <code>OPENROUTER_API_KEY</code> for the other models to the server’s{" "}
-            <code>.env.local</code>, then restart the app. Keys stay on the
-            server.{" "}
+            To connect models, add <code>TYPESAFE_API_KEY</code>,{" "}
+            <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, and{" "}
+            <code>GOOGLE_API_KEY</code> to the server’s <code>.env.local</code>,
+            then restart the app. Keys stay on the server.{" "}
             {readyLanes > 0
               ? "Configured models can race independently."
-              : "Connect a provider before starting a live race, or try Sample mode."}
+              : "Connect a provider before starting a race."}
           </p>
         )}
         {error && (

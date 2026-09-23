@@ -10,7 +10,8 @@ import {
   LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
-import { articleUrl, type LaneState, type RaceConfig } from "@/lib/race/types";
+import { articleUrl, type LaneState, type RaceConfig } from "../lib/race/types";
+import { arenaKeyName } from "../lib/tool-bench/lanes";
 
 export function formatTime(ms: number) {
   if (ms < 1000) return `${Math.round(ms)} ms`;
@@ -21,7 +22,7 @@ const statusLabels: Record<LaneState["status"], string> = {
   ready: "Ready",
   loading: "Reading article",
   thinking: "Choosing a link",
-  finished: "Finished",
+  finished: "Complete",
   exhausted: "Race limit reached",
   error: "Lane failed",
   cancelled: "Stopped",
@@ -53,7 +54,7 @@ export function LaneCard({
 
   return (
     <article
-      className={`arena-lane arena-lane-${lane.id} ${active ? "lane-active" : ""}`}
+      className={`arena-lane arena-lane-${lane.id} ${active ? "lane-active" : ""} ${status === "finished" ? "lane-complete" : ""}`}
       aria-label={`${lane.name} race lane`}
     >
       <header className="lane-header">
@@ -71,6 +72,8 @@ export function LaneCard({
               <LoaderCircle size={10} className="spin" />
             ) : status === "error" ? (
               <TriangleAlert size={10} />
+            ) : status === "finished" ? (
+              <Check size={11} strokeWidth={2.5} />
             ) : (
               <span className="status-dot" />
             )}
@@ -93,8 +96,7 @@ export function LaneCard({
           <span className="lane-model-id">{lane.model}</span>
           {unavailable && (
             <p className="lane-empty-note">
-              Connect {lane.provider === "jev" ? "TypeSafe" : "OpenRouter"} in
-              setup.
+              Configure {arenaKeyName(lane)} in setup.
             </p>
           )}
           {lane.error && (

@@ -90,7 +90,7 @@ describe("arena run specification", () => {
       "running",
       "unavailable",
     ]);
-    expect(live.lanes[1].error).toContain("OPENROUTER_API_KEY");
+    expect(live.lanes[1].error).toContain("OPENAI_API_KEY");
     expect(
       createArenaRun("sample", "order-details", mixed).lanes.map(
         (lane) => lane.status,
@@ -662,7 +662,7 @@ describe("execution graph rendering", () => {
       }),
     );
     expect(html).toContain("Jev");
-    expect(html).toContain("GPT-4.1 mini");
+    expect(html).toContain("GPT-5.6 Luna");
     expect(html).toContain("Prompt");
     expect(html).toContain("Decision");
     expect(html).toContain("Tool");
