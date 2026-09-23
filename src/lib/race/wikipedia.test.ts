@@ -62,6 +62,17 @@ describe("Wikipedia retrieval", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it("retries a transient network timeout before giving up", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new DOMException("Timed out", "TimeoutError"))
+      .mockResolvedValueOnce(Response.json(page));
+    expect((await loadWikipediaPage("Alias", signal, fetcher)).title).toBe(
+      "Canonical",
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it("stops retrying after the bounded rate-limit budget", async () => {
     const fetcher = vi
       .fn<typeof fetch>()

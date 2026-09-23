@@ -36,7 +36,7 @@ const jevRequestSchema = z.object({
     }),
   ),
 });
-function jevFetcher(tool = "lookup_order") {
+function jevFetcher(tool = "get_wikipedia_article") {
   return vi.fn<typeof fetch>(async (_url, init) => {
     const request = jevRequestSchema.parse(JSON.parse(String(init?.body)));
     return Response.json({
@@ -91,21 +91,11 @@ describe("benchmark provider contracts", () => {
     );
     expect(body.model).toBe("configured-jev");
     expect(Object.keys(body.questions).sort()).toEqual(
-      [
-        "tool",
-        "order_id",
-        "payment_id",
-        "reason",
-        "subscription_id",
-        "timing",
-        "customer_id",
-        "category",
-        "priority",
-      ].sort(),
+      ["tool", "title", "repository"].sort(),
     );
-    expect(decision.tool).toBe("lookup_order");
+    expect(decision.tool).toBe("get_wikipedia_article");
     expect(decision.arguments).toEqual({
-      order_id: BENCH_CASES[0].entities.order_id[0],
+      title: BENCH_CASES[0].entities.title[0],
     });
     expect(decision.inputTokens).toBe(42);
     expect(decision.outputTokens).toBeNull();
@@ -123,7 +113,7 @@ describe("benchmark provider contracts", () => {
     const fetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValue(
-        routerResponse("lookup_order", '{"order_id":"ORD-1042"}'),
+        routerResponse("get_wikipedia_article", '{"title":"Earth"}'),
       );
     const decision = await createOpenRouterProvider(
       "test-key",
@@ -143,8 +133,8 @@ describe("benchmark provider contracts", () => {
     expect(JSON.parse(body.messages[1].content)).not.toHaveProperty("expected");
     expect(JSON.parse(body.messages[1].content)).not.toHaveProperty("id");
     expect(decision).toMatchObject({
-      tool: "lookup_order",
-      arguments: { order_id: "ORD-1042" },
+      tool: "get_wikipedia_article",
+      arguments: { title: "Earth" },
       confidence: null,
       inputTokens: 37,
       outputTokens: 8,
@@ -154,7 +144,7 @@ describe("benchmark provider contracts", () => {
     const fetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValue(
-        routerResponse("invented", '{"order_id":42,"extra":true}'),
+        routerResponse("invented", '{"title":42,"extra":true}'),
       );
     expect(
       await createOpenRouterProvider(
@@ -164,13 +154,15 @@ describe("benchmark provider contracts", () => {
       )(BENCH_CASES[0], signal),
     ).toMatchObject({
       tool: "invented",
-      arguments: { order_id: 42, extra: true },
+      arguments: { title: 42, extra: true },
     });
   });
   it("distinguishes malformed model output from fatal HTTP errors", async () => {
     const badOutput = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(routerResponse("lookup_order", "invalid json"));
+      .mockResolvedValue(
+        routerResponse("get_wikipedia_article", "invalid json"),
+      );
     await expect(
       createOpenRouterProvider(
         "test-key",
@@ -179,7 +171,7 @@ describe("benchmark provider contracts", () => {
       )(BENCH_CASES[0], signal),
     ).rejects.toMatchObject({
       name: "BenchOutputError",
-      selectedTool: "lookup_order",
+      selectedTool: "get_wikipedia_article",
     });
     const offline = vi
       .fn<typeof fetch>()
@@ -211,8 +203,8 @@ describe("benchmark provider contracts", () => {
                 tool_calls: Array.from({ length: count }, () => ({
                   type: "function",
                   function: {
-                    name: "lookup_order",
-                    arguments: '{"order_id":"ORD-1042"}',
+                    name: "get_wikipedia_article",
+                    arguments: '{"title":"Earth"}',
                   },
                 })),
               },

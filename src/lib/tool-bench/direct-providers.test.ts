@@ -10,7 +10,7 @@ import { BenchOutputError } from "./providers";
 
 const input = BENCH_CASES[0];
 const signal = new AbortController().signal;
-const call = { name: "lookup_order", args: { order_id: "ORD-1042" } };
+const call = { name: "get_wikipedia_article", args: { title: "Earth" } };
 
 describe("direct provider tool calls", () => {
   it("uses the Responses API and preserves OpenAI's native call", async () => {

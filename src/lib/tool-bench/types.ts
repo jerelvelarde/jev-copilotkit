@@ -4,15 +4,15 @@ import { ARENA_LANES, arenaKeyName } from "./lanes";
 import type { scoreCall } from "./scoring";
 
 export const benchConfigSchema = z.object({
-  mode: z.enum(["sample", "live"]),
+  mode: z.literal("live"),
   caseCount: z.number().int().min(1).max(12).default(6),
 });
 export type BenchConfig = z.infer<typeof benchConfigSchema>;
 export const DEFAULT_BENCH_CONFIG: BenchConfig = {
-  mode: "sample",
+  mode: "live",
   caseCount: 6,
 };
-export const DATASET_VERSION = "support-v1";
+export const DATASET_VERSION = "public-live-v1";
 export type ToolCall = { tool: string; arguments: Record<string, unknown> };
 export type BenchCaseInput = {
   id: string;
@@ -71,7 +71,7 @@ export type BenchDependencies = {
 };
 /** One synchronized race sends the same single case to every agent lane. */
 export const arenaConfigSchema = z.object({
-  mode: z.enum(["sample", "live"]),
+  mode: z.literal("live"),
   caseId: z.string().min(1),
 });
 export type ArenaConfig = z.infer<typeof arenaConfigSchema>;

@@ -3,14 +3,14 @@ import { EventType, type BaseEvent, type RunAgentInput } from "@ag-ui/core";
 import { Observable } from "rxjs";
 import { runRace } from "./engine";
 import { getLaneDefinitions, liveProviders } from "./providers";
-import { createSampleDependencies } from "./sample";
 import { loadWikipediaPage } from "./wikipedia";
 import { raceConfigSchema } from "./types";
+import type { RaceDependencies } from "./types";
 import { z } from "zod";
 
 export class WikiRaceAgent extends AbstractAgent {
   private raceController = new AbortController();
-  constructor() {
+  constructor(private readonly dependencies?: RaceDependencies) {
     super({
       agentId: "wiki_race",
       description:
@@ -40,13 +40,10 @@ export class WikiRaceAgent extends AbstractAgent {
             .object({ config: raceConfigSchema })
             .parse(input.forwardedProps);
           const lanes = getLaneDefinitions();
-          const dependencies =
-            config.mode === "sample"
-              ? createSampleDependencies(config)
-              : {
-                  loadPage: loadWikipediaPage,
-                  providers: liveProviders(lanes),
-                };
+          const dependencies = this.dependencies ?? {
+            loadPage: loadWikipediaPage,
+            providers: liveProviders(lanes),
+          };
           await runRace(
             config,
             lanes,
@@ -86,6 +83,6 @@ export class WikiRaceAgent extends AbstractAgent {
   }
 
   clone(): WikiRaceAgent {
-    return new WikiRaceAgent();
+    return new WikiRaceAgent(this.dependencies);
   }
 }

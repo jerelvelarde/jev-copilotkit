@@ -1,169 +1,121 @@
-import { getToolDefinition, type ToolArguments, type ToolName } from "./tools";
+import { z } from "zod";
+import { loadWikipediaPage } from "../race/wikipedia";
+import { getToolDefinition } from "./tools";
 import type { ToolCall, ToolExecution } from "./types";
 
-/** Every prepared result the arena can render. Adding a tool must extend this. */
 export type ToolResult =
   | {
-      kind: "order";
-      orderId: string;
-      status: string;
-      items: number;
-      total: string;
+      kind: "article";
+      title: string;
+      extract: string;
+      linkCount: number;
+      url: string;
     }
   | {
-      kind: "shipment";
-      orderId: string;
-      carrier: string;
-      status: string;
-      eta: string;
+      kind: "repository";
+      name: string;
+      description: string;
+      stars: number;
+      language: string;
+      url: string;
     }
   | {
-      kind: "refund";
-      paymentId: string;
-      reason: ToolArguments["refund_payment"]["reason"];
-      status: string;
-      amount: string;
-    }
-  | {
-      kind: "cancellation";
-      subscriptionId: string;
-      timing: ToolArguments["cancel_subscription"]["timing"];
-      status: string;
-      effective: string;
-    }
-  | {
-      kind: "ticket";
-      ticketId: string;
-      customerId: string;
-      category: ToolArguments["create_ticket"]["category"];
-      status: string;
-      queue: string;
-    }
-  | {
-      kind: "escalation";
-      customerId: string;
-      priority: ToolArguments["escalate_to_human"]["priority"];
-      status: string;
-      queue: string;
-      waitMinutes: number;
+      kind: "release";
+      repository: string;
+      tag: string;
+      name: string;
+      publishedAt: string;
+      url: string;
     };
 
-/** A registry tool without a prepared renderer must fail the build, not run. */
-function assertNever(value: never): never {
-  throw new Error(`Unhandled tool: ${JSON.stringify(value)}`);
-}
+const repositorySchema = z.object({
+  full_name: z.string(),
+  description: z.string().nullable(),
+  stargazers_count: z.number(),
+  language: z.string().nullable(),
+  html_url: z.url(),
+});
+const releaseSchema = z.object({
+  tag_name: z.string(),
+  name: z.string().nullable(),
+  published_at: z.string().nullable(),
+  html_url: z.url(),
+});
 
-/** Resolves after the delay, or rejects with the abort reason without leaving a timer. */
-export function abortableDelay(
-  delayMs: number,
+async function github(
+  path: string,
   signal: AbortSignal,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const abort = () => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", abort);
-      reject(signal.reason);
-    };
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", abort);
-      resolve();
-    }, delayMs);
-    signal.addEventListener("abort", abort, { once: true });
-    if (signal.aborted) abort();
+  fetcher: typeof fetch,
+) {
+  const response = await fetcher(`https://api.github.com/repos/${path}`, {
+    signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
+    headers: {
+      Accept: "application/vnd.github+json",
+      "User-Agent": "JevCopilotKitToolArena/1.0",
+    },
   });
+  if (!response.ok)
+    throw new Error(`GitHub returned HTTP ${response.status} for ${path}.`);
+  return response.json();
 }
 
-// Fixed in-memory fixtures. These tools never contact an external system,
-// mutate data, or depend on wall-clock time, so the same call always renders
-// the same result for every lane.
-function buildFixtureResult<Name extends ToolName>(
-  tool: Name,
-  args: ToolArguments[Name],
-): ToolResult {
-  switch (tool) {
-    case "lookup_order": {
-      const { order_id } = args as ToolArguments["lookup_order"];
-      return {
-        kind: "order",
-        orderId: order_id,
-        status: "Delivered",
-        items: 2,
-        total: "$84.00",
-      };
-    }
-    case "track_shipment": {
-      const { order_id } = args as ToolArguments["track_shipment"];
-      return {
-        kind: "shipment",
-        orderId: order_id,
-        carrier: "Northwind Freight",
-        status: "Out for delivery",
-        eta: "Today, 6:00 PM",
-      };
-    }
-    case "refund_payment": {
-      const { payment_id, reason } = args as ToolArguments["refund_payment"];
-      return {
-        kind: "refund",
-        paymentId: payment_id,
-        reason,
-        status: "Refund queued",
-        amount: "$42.00",
-      };
-    }
-    case "cancel_subscription": {
-      const { subscription_id, timing } =
-        args as ToolArguments["cancel_subscription"];
-      return {
-        kind: "cancellation",
-        subscriptionId: subscription_id,
-        timing,
-        status: "Cancellation scheduled",
-        effective: timing === "now" ? "Immediately" : "End of paid period",
-      };
-    }
-    case "create_ticket": {
-      const { customer_id, category } = args as ToolArguments["create_ticket"];
-      return {
-        kind: "ticket",
-        ticketId: `TCK-${customer_id}`,
-        customerId: customer_id,
-        category,
-        status: "Ticket opened",
-        queue: `${category} support`,
-      };
-    }
-    case "escalate_to_human": {
-      const { customer_id, priority } =
-        args as ToolArguments["escalate_to_human"];
-      return {
-        kind: "escalation",
-        customerId: customer_id,
-        priority,
-        status: "Routed to a human",
-        queue: priority === "urgent" ? "Priority queue" : "Standard queue",
-        waitMinutes: priority === "urgent" ? 2 : 11,
-      };
-    }
-    default:
-      return assertNever(tool);
-  }
-}
-
+/** Execute the model's validated call against public, read-only APIs. */
 export async function executeToolCall(
   call: ToolCall,
   signal: AbortSignal,
-  delayMs = 180,
+  fetcher: typeof fetch = fetch,
 ): Promise<ToolExecution> {
   const definition = getToolDefinition(call.tool);
   if (!definition) throw new Error(`Unknown tool: ${call.tool}`);
   const parsed = definition.safeParse(call.arguments);
   if (!parsed.success) throw new Error(`Invalid arguments for ${call.tool}.`);
-  await abortableDelay(delayMs, signal);
-  const tool = call.tool as ToolName;
-  return {
-    tool,
-    arguments: parsed.data,
-    result: buildFixtureResult(tool, parsed.data as ToolArguments[ToolName]),
-  };
+  signal.throwIfAborted();
+  let result: ToolResult;
+  switch (call.tool) {
+    case "get_wikipedia_article": {
+      const { title } = parsed.data as { title: string };
+      const article = await loadWikipediaPage(title, signal, fetcher);
+      result = {
+        kind: "article",
+        title: article.title,
+        extract: article.extract,
+        linkCount: article.links.length,
+        url: article.url,
+      };
+      break;
+    }
+    case "get_github_repository": {
+      const { repository } = parsed.data as { repository: string };
+      const data = repositorySchema.parse(
+        await github(repository, signal, fetcher),
+      );
+      result = {
+        kind: "repository",
+        name: data.full_name,
+        description: data.description ?? "No description",
+        stars: data.stargazers_count,
+        language: data.language ?? "Unknown",
+        url: data.html_url,
+      };
+      break;
+    }
+    case "get_github_latest_release": {
+      const { repository } = parsed.data as { repository: string };
+      const data = releaseSchema.parse(
+        await github(`${repository}/releases/latest`, signal, fetcher),
+      );
+      result = {
+        kind: "release",
+        repository,
+        tag: data.tag_name,
+        name: data.name ?? data.tag_name,
+        publishedAt: data.published_at ?? "Unknown",
+        url: data.html_url,
+      };
+      break;
+    }
+    default:
+      throw new Error(`Unknown tool: ${call.tool}`);
+  }
+  return { tool: call.tool, arguments: structuredClone(parsed.data), result };
 }

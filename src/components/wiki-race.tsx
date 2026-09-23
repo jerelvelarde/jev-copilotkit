@@ -65,10 +65,7 @@ function RaceBoard({
 }) {
   const { agent, isReady } = useAgent({ agentId: "wiki_race" });
   const { copilotkit } = useCopilotKit();
-  const [config, setConfig] = useState<RaceConfig>({
-    ...DEFAULT_CONFIG,
-    mode: "live",
-  });
+  const [config, setConfig] = useState<RaceConfig>(DEFAULT_CONFIG);
   const [setupOpen, setSetupOpen] = useState(false);
   const [definitions, setDefinitions] =
     useState<LaneDefinition[]>(DEFAULT_LANES);
@@ -288,7 +285,6 @@ function RaceBoard({
           <LaneCard
             key={lane.id}
             lane={lane}
-            config={stateConfig}
             place={
               race.status === "complete" && lane.status === "finished"
                 ? finished.findIndex((item) => item.id === lane.id) + 1

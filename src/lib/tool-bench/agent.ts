@@ -11,8 +11,8 @@ import {
   createGoogleProvider,
   createOpenAIProvider,
 } from "./direct-providers";
-import { createSampleProvider } from "./sample";
-import { arenaConfigSchema, type ArenaConfig } from "./types";
+import { arenaConfigSchema } from "./types";
+import type { LaneDependencies } from "./lane-engine";
 
 const runPropsSchema = z.object({
   config: arenaConfigSchema,
@@ -20,8 +20,7 @@ const runPropsSchema = z.object({
 });
 
 /** Every lane keeps its own keys server-side; nothing here reaches the client. */
-function laneProvider(lane: LaneDefinition, config: ArenaConfig) {
-  if (config.mode === "sample") return createSampleProvider(lane.id);
+function laneProvider(lane: LaneDefinition) {
   switch (lane.provider) {
     case "jev":
       return createJevProvider(process.env.TYPESAFE_API_KEY ?? "", lane.model);
@@ -44,7 +43,13 @@ function laneProvider(lane: LaneDefinition, config: ArenaConfig) {
 
 export class ToolArenaAgent extends AbstractAgent {
   private laneController = new AbortController();
-  constructor(private readonly lane: LaneDefinition) {
+  constructor(
+    private readonly lane: LaneDefinition,
+    private readonly dependencies?: Pick<
+      LaneDependencies,
+      "provider" | "execute"
+    >,
+  ) {
     super({
       agentId: `tool_bench_${lane.id}`,
       description: `${lane.name} tool-calling arena lane`,
@@ -74,8 +79,8 @@ export class ToolArenaAgent extends AbstractAgent {
             config,
             runId,
             {
-              provider: laneProvider(this.lane, config),
-              execute: executeToolCall,
+              provider: this.dependencies?.provider ?? laneProvider(this.lane),
+              execute: this.dependencies?.execute ?? executeToolCall,
             },
             controller.signal,
             (snapshot) =>
@@ -94,7 +99,7 @@ export class ToolArenaAgent extends AbstractAgent {
             type: EventType.RUN_ERROR,
             message:
               error instanceof z.ZodError
-                ? "Invalid arena run specification. Choose sample or live mode and one benchmark case."
+                ? "Invalid arena run specification. Choose one benchmark case."
                 : error instanceof Error
                   ? error.message
                   : "The arena lane could not start.",
@@ -111,6 +116,6 @@ export class ToolArenaAgent extends AbstractAgent {
     });
   }
   override clone(): ToolArenaAgent {
-    return new ToolArenaAgent(this.lane);
+    return new ToolArenaAgent(this.lane, this.dependencies);
   }
 }

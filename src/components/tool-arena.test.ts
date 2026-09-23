@@ -65,62 +65,53 @@ function controller(
 describe("arena run specification", () => {
   it("sends one case to every registered lane agent", () => {
     expect(
-      createArenaRun("sample", "order-details", definitions, {
+      createArenaRun("live", "earth-article", definitions, {
         runId: "run-1",
       }),
     ).toMatchObject({
       runId: "run-1",
-      config: { mode: "sample", caseId: "order-details" },
+      config: { mode: "live", caseId: "earth-article" },
       lanes: definitions.map((lane) => ({
         agentId: `tool_bench_${lane.id}`,
         runId: "run-1",
-        caseId: "order-details",
+        caseId: "earth-article",
         status: "running",
       })),
     });
   });
 
-  it("marks unconfigured live lanes unavailable and keeps sample lanes running", () => {
+  it("marks unconfigured lanes unavailable", () => {
     const mixed = withAgentIds([
       { ...DEFAULT_LANES[0], available: true },
       { ...DEFAULT_LANES[1], available: false },
     ]);
-    const live = createArenaRun("live", "order-details", mixed);
+    const live = createArenaRun("live", "earth-article", mixed);
     expect(live.lanes.map((lane) => lane.status)).toEqual([
       "running",
       "unavailable",
     ]);
     expect(live.lanes[1].error).toContain("OPENAI_API_KEY");
-    expect(
-      createArenaRun("sample", "order-details", mixed).lanes.map(
-        (lane) => lane.status,
-      ),
-    ).toEqual(["running", "running"]);
   });
 
   it("rejects a run specification without a selected case", () => {
-    expect(() => createArenaRun("sample", "", definitions)).toThrow();
+    expect(() => createArenaRun("live", "", definitions)).toThrow();
   });
 
-  it("never asks a sample lane for a key it does not need before the race", () => {
+  it("explains the missing key before the race", () => {
     const unconfigured = withAgentIds([
       { ...DEFAULT_LANES[0], available: false },
     ])[0];
-    expect(idleArenaLane(unconfigured, true)).toMatchObject({
-      status: "idle",
-      error: null,
-    });
-    const live = idleArenaLane(unconfigured, false);
+    const live = idleArenaLane(unconfigured);
     expect(live.status).toBe("unavailable");
     expect(live.error).toBeTruthy();
   });
 
   it("carries the selected prompt so lanes render before the first snapshot", () => {
     expect(
-      createArenaRun("sample", "order-details", definitions, {
-        prompt: "Check ORD-1042.",
+      createArenaRun("live", "earth-article", definitions, {
+        prompt: "Check Earth.",
       }).lanes[0].prompt,
-    ).toBe("Check ORD-1042.");
+    ).toBe("Check Earth.");
   });
 });
 
@@ -182,7 +173,7 @@ describe("arena completion and interruption", () => {
 describe("client UI commit measurement", () => {
   const completed = state("complete", {
     execution: {
-      tool: "lookup_order",
+      tool: "get_wikipedia_article",
       arguments: {},
       result: { kind: "order" },
     },
@@ -232,7 +223,7 @@ describe("synchronized arena launch", () => {
       .slice(1)
       .map((definition) => controller(definition));
     const results = await launchArena([failing, ...healthy], {
-      config: { mode: "sample", caseId: "order-details" },
+      config: { mode: "live", caseId: "earth-article" },
       runId: "run-1",
     });
     expect(results.map((entry) => entry.status)).toEqual([
@@ -244,20 +235,15 @@ describe("synchronized arena launch", () => {
     for (const lane of healthy) expect(lane.run).toHaveBeenCalledTimes(1);
   });
 
-  it("skips unconfigured lanes in live mode but runs them all in sample mode", async () => {
+  it("skips unconfigured lanes", async () => {
     const available = controller({ ...definitions[0], available: true });
     const missing = controller({ ...definitions[1], available: false });
     await launchArena([available, missing], {
-      config: { mode: "live", caseId: "order-details" },
+      config: { mode: "live", caseId: "earth-article" },
       runId: "run-1",
     });
     expect(available.run).toHaveBeenCalledTimes(1);
     expect(missing.run).not.toHaveBeenCalled();
-    await launchArena([available, missing], {
-      config: { mode: "sample", caseId: "order-details" },
-      runId: "run-2",
-    });
-    expect(missing.run).toHaveBeenCalledTimes(1);
   });
 
   it("stops every running agent and leaves finished lanes alone", () => {
@@ -391,30 +377,30 @@ describe("lane lifecycle with the installed CopilotKit SDK", () => {
 
 const completedJev = (overrides: Partial<ArenaLane> = {}): ArenaLane => ({
   ...state("complete"),
-  caseId: "order-details",
-  prompt: "I need the item list and total for order ORD-1042.",
-  expected: { tool: "lookup_order", arguments: { order_id: "ORD-1042" } },
+  caseId: "earth-article",
+  prompt: "Get the current Wikipedia introduction for Earth.",
+  expected: { tool: "get_wikipedia_article", arguments: { title: "Earth" } },
   decision: {
-    tool: "lookup_order",
-    arguments: { order_id: "ORD-1042" },
+    tool: "get_wikipedia_article",
+    arguments: { title: "Earth" },
     modelMs: 350,
     inputTokens: 412,
     outputTokens: 18,
     confidence: 0.94,
     choices: [
-      { tool: "lookup_order", probability: 0.94 },
-      { tool: "track_shipment", probability: 0.04 },
+      { tool: "get_wikipedia_article", probability: 0.94 },
+      { tool: "get_github_repository", probability: 0.04 },
     ],
   },
   execution: {
-    tool: "lookup_order",
-    arguments: { order_id: "ORD-1042" },
+    tool: "get_wikipedia_article",
+    arguments: { title: "Earth" },
     result: {
-      kind: "order",
-      orderId: "ORD-1042",
-      status: "Delivered",
-      items: 2,
-      total: "$84.00",
+      kind: "article",
+      title: "Earth",
+      extract: "Planet Earth introduction",
+      linkCount: 42,
+      url: "https://en.wikipedia.org/wiki/Earth",
     },
   },
   score: { toolCorrect: true, argumentsCorrect: true, correct: true },
@@ -460,13 +446,11 @@ describe("agent conversation lane", () => {
     const html = markup(completedJev());
     expect(html).toContain("tb-lane-complete");
     expect(html).toContain("Complete");
-    expect(html).toContain(
-      "I need the item list and total for order ORD-1042.",
-    );
-    expect(html).toContain("lookup_order");
-    expect(html).toContain("ORD-1042");
-    expect(html).toContain("Delivered");
-    expect(html).toContain("$84.00");
+    expect(html).toContain("Get the current Wikipedia introduction for Earth.");
+    expect(html).toContain("get_wikipedia_article");
+    expect(html).toContain("Earth");
+    expect(html).toContain("Planet Earth introduction");
+    expect(html).toContain("42");
     expect(html).toContain("Exact match");
     expect(html).toContain("350 ms");
     expect(html).toContain("180 ms");
@@ -475,7 +459,7 @@ describe("agent conversation lane", () => {
 
   it("discloses ranked Jev choices and keeps both correctness checks visible", () => {
     const html = markup(completedJev());
-    expect(html).toContain("track_shipment");
+    expect(html).toContain("get_github_repository");
     expect(html).toContain("94.0%");
     expect(html).toContain("Tool ✓");
     expect(html).toContain("arguments ✓");
@@ -491,7 +475,7 @@ describe("agent conversation lane", () => {
       decision: { ...lane.decision!, confidence: null, choices: [] },
     });
     expect(html).not.toContain("Ranked tool choices");
-    expect(html).toContain("lookup_order");
+    expect(html).toContain("get_wikipedia_article");
   });
 
   it("marks an incorrect but executed call without claiming a match", () => {
@@ -499,20 +483,21 @@ describe("agent conversation lane", () => {
       completedJev({
         decision: {
           ...completedJev().decision!,
-          tool: "track_shipment",
-          arguments: { order_id: "ORD-1089" },
+          tool: "get_github_repository",
+          arguments: { title: "cli/cli" },
           choices: [],
           confidence: null,
         },
         execution: {
-          tool: "track_shipment",
-          arguments: { order_id: "ORD-1089" },
+          tool: "get_github_repository",
+          arguments: { title: "cli/cli" },
           result: {
-            kind: "shipment",
-            orderId: "ORD-1089",
-            carrier: "Northwind Freight",
-            status: "Out for delivery",
-            eta: "Today, 6:00 PM",
+            kind: "repository",
+            name: "cli/cli",
+            description: "GitHub CLI",
+            stars: 123,
+            language: "Go",
+            url: "https://github.com/cli/cli",
           },
         },
         score: { toolCorrect: false, argumentsCorrect: false, correct: false },
@@ -520,7 +505,7 @@ describe("agent conversation lane", () => {
     );
     expect(html).toContain("Tool mismatch");
     expect(html).not.toContain("Exact match");
-    expect(html).toContain("Northwind Freight");
+    expect(html).toContain("GitHub CLI");
   });
 
   it("never renders a fabricated result for a failed lane", () => {
@@ -528,7 +513,7 @@ describe("agent conversation lane", () => {
       completedJev({
         status: "error",
         execution: null,
-        error: "Invalid arguments for lookup_order.",
+        error: "Invalid arguments for get_wikipedia_article.",
         events: [
           {
             phase: "decision",
@@ -542,14 +527,14 @@ describe("agent conversation lane", () => {
             status: "error",
             atMs: 350,
             durationMs: 0,
-            message: "Invalid arguments for lookup_order.",
+            message: "Invalid arguments for get_wikipedia_article.",
           },
         ],
       }),
     );
-    expect(html).toContain("Invalid arguments for lookup_order.");
-    expect(html).not.toContain("Delivered");
-    expect(html).not.toContain("$84.00");
+    expect(html).toContain("Invalid arguments for get_wikipedia_article.");
+    expect(html).not.toContain("Planet Earth introduction");
+    expect(html).not.toContain("42");
     expect(html).toContain("Lane failed");
   });
 

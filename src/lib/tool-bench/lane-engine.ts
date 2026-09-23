@@ -21,7 +21,7 @@ export type LaneDependencies = {
 };
 
 /**
- * Runs one provider decision and one local tool execution for a single case,
+ * Runs one provider decision and one live tool execution for a single case,
  * publishing a cloned snapshot at every phase boundary. The lane always reaches
  * a terminal state; it never throws for a provider, tool, or stop outcome, so a
  * failing lane cannot end the other agents in the race.
@@ -46,7 +46,7 @@ export async function runArenaLane(
   };
   const emit = () => publish(structuredClone(state));
 
-  if (config.mode === "live" && !lane.available) {
+  if (!lane.available) {
     state.status = "unavailable";
     state.error = missingKeyMessage(lane);
     emit();
@@ -57,7 +57,7 @@ export async function runArenaLane(
   emit();
 
   const deadline = AbortSignal.timeout(
-    Math.min(60_000, Math.max(1, dependencies.timeoutMs ?? 25_000)),
+    Math.min(60_000, Math.max(1, dependencies.timeoutMs ?? 45_000)),
   );
   const signal = AbortSignal.any([parentSignal, deadline]);
   const began = now();

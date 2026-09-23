@@ -12,7 +12,7 @@ const title = z
 export const raceConfigSchema = z.object({
   start: title,
   target: title,
-  mode: z.enum(["sample", "live"]),
+  mode: z.literal("live"),
   maxHops: z.number().int().min(1).max(20).default(12),
 });
 export type RaceConfig = z.infer<typeof raceConfigSchema>;
@@ -39,7 +39,7 @@ export type Decision = {
   modelMs: number;
   inputTokens: number | null;
   modelCalls: number;
-  method: "choice" | "rank+choice" | "direct" | "sample";
+  method: "choice" | "rank+choice" | "direct";
 };
 export type Hop = Decision & {
   from: string;
@@ -102,7 +102,7 @@ export const articleUrl = (value: string) =>
 export const DEFAULT_CONFIG: RaceConfig = {
   start: "Baseball",
   target: "Sun",
-  mode: "sample",
+  mode: "live",
   maxHops: 12,
 };
 export const DEFAULT_LANES: LaneDefinition[] = [

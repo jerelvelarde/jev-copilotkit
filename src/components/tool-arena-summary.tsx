@@ -196,8 +196,8 @@ export function ToolArenaSummary({
       </div>
       <footer className="tb-footer">
         <span>
-          Accuracy and speed are reported separately; local tools are
-          deterministic and side-effect free.
+          Accuracy and speed are reported separately. Tools fetch current,
+          read-only public data; network time affects each lane.
         </span>
         <details className="tb-methodology">
           <summary>
@@ -206,7 +206,7 @@ export function ToolArenaSummary({
           <div>
             <p>
               Every agent receives the same request, tool definitions, entity
-              candidates, evaluation rules and local tool implementations. Jev
+              candidates, evaluation rules and live tool implementations. Jev
               selects the tool and each constrained argument through typed
               Choice questions in one request; the comparison models use native
               function calling through their native APIs. These integration
@@ -216,7 +216,7 @@ export function ToolArenaSummary({
             <p>
               <strong>Decision</strong> runs from request dispatch to a valid
               tool call or a provider failure. <strong>Tool</strong> runs from
-              local tool invocation to its result or failure.{" "}
+              the public API request to its result or failure.{" "}
               <strong>UI commit</strong> runs from receiving the tool result
               until the browser commits the rendered lane; it is an application
               lifecycle measurement, not a paint benchmark.{" "}

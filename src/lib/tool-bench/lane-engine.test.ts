@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_LANES, type LaneDefinition } from "../race/types";
 import { BENCH_CASES } from "./cases";
 import { executeToolCall } from "./executor";
+import type { ToolCall } from "./types";
 import { runArenaLane, type LaneDependencies } from "./lane-engine";
 import { BenchOutputError } from "./providers";
 import type {
@@ -12,8 +13,18 @@ import type {
 } from "./types";
 
 const lane: LaneDefinition = { ...DEFAULT_LANES[0], available: true };
-const config: ArenaConfig = { mode: "live", caseId: "order-details" };
+const config: ArenaConfig = { mode: "live", caseId: "earth-article" };
 const authored = BENCH_CASES[0];
+const fakeExecute = async (call: ToolCall) => ({
+  ...call,
+  result: {
+    kind: "article",
+    title: "Earth",
+    extract: "Text",
+    linkCount: 1,
+    url: "https://en.wikipedia.org/wiki/Earth",
+  },
+});
 
 const decision = (overrides: Partial<BenchDecision> = {}): BenchDecision => ({
   ...structuredClone(authored.expected),
@@ -41,7 +52,7 @@ function steppedClock(steps: number[]) {
 
 async function runLane({
   provider = (async () => decision()) as BenchProvider,
-  execute = executeToolCall,
+  execute = fakeExecute,
   now,
   timeoutMs,
   signal = new AbortController().signal,
@@ -75,7 +86,7 @@ describe("one-lane arena engine", () => {
   it("emits an ordered timeline, scores the call and runs the local tool", async () => {
     const { final } = await runLane({
       now: steppedClock([20, 10]),
-      execute: (call) => executeToolCall(call, new AbortController().signal, 0),
+      execute: fakeExecute,
     });
     expect(phases(final)).toEqual([
       ["decision", "started"],
@@ -88,7 +99,7 @@ describe("one-lane arena engine", () => {
       argumentsCorrect: true,
       correct: true,
     });
-    expect(final.execution?.result).toMatchObject({ kind: "order" });
+    expect(final.execution?.result).toMatchObject({ kind: "article" });
     expect(final.timings).toMatchObject({
       decisionMs: 20,
       toolMs: 10,
@@ -103,7 +114,7 @@ describe("one-lane arena engine", () => {
 
   it("publishes cloned snapshots at every phase boundary", async () => {
     const { final, snapshots } = await runLane({
-      execute: (call) => executeToolCall(call, new AbortController().signal, 0),
+      execute: fakeExecute,
     });
     expect(snapshots.map((state) => state.events.length)).toEqual([
       0, 1, 2, 3, 4,
@@ -123,7 +134,7 @@ describe("one-lane arena engine", () => {
     const provider = vi.fn<BenchProvider>(async () => decision());
     await runLane({
       provider,
-      execute: (call) => executeToolCall(call, new AbortController().signal, 0),
+      execute: fakeExecute,
     });
     const [input] = provider.mock.calls[0];
     expect(input).not.toHaveProperty("expected");
@@ -134,10 +145,10 @@ describe("one-lane arena engine", () => {
     const { final } = await runLane({
       provider: async () =>
         decision({
-          tool: "track_shipment",
-          arguments: { order_id: "ORD-1089" },
+          tool: "get_github_repository",
+          arguments: { repository: "cli/cli" },
         }),
-      execute: (call) => executeToolCall(call, new AbortController().signal, 0),
+      execute: fakeExecute,
     });
     expect(final.status).toBe("complete");
     expect(final.score).toEqual({
@@ -145,7 +156,7 @@ describe("one-lane arena engine", () => {
       argumentsCorrect: false,
       correct: false,
     });
-    expect(final.execution?.result).toMatchObject({ kind: "shipment" });
+    expect(final.execution?.result).toMatchObject({ kind: "article" });
     expect(phases(final).at(-1)).toEqual(["tool", "finished"]);
   });
 
@@ -157,11 +168,15 @@ describe("one-lane arena engine", () => {
     ],
     [
       "invalid arguments",
-      async () => decision({ arguments: { order_id: 7 } }),
+      async () => decision({ arguments: { title: 7 } }),
       "Invalid arguments",
     ],
   ])("fails without a fabricated result for %s", async (_label, provider) => {
-    const { final } = await runLane({ provider: provider as BenchProvider });
+    const { final } = await runLane({
+      provider: provider as BenchProvider,
+      execute: (call, signal) =>
+        executeToolCall(call, signal, async () => Response.json({})),
+    });
     expect(final.status).toBe("error");
     expect(final.execution).toBeNull();
     expect(final.decision).not.toBeNull();
@@ -198,7 +213,7 @@ describe("one-lane arena engine", () => {
           null,
           null,
           null,
-          "lookup_order",
+          "get_wikipedia_article",
         );
       },
     });

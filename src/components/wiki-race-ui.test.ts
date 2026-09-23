@@ -5,7 +5,7 @@ import { DEFAULT_CONFIG, initialRace } from "../lib/race/types";
 import { LaneCard } from "./lane-card";
 import { RaceWinner } from "./race-winner";
 
-const config = { ...DEFAULT_CONFIG, mode: "live" as const };
+const config = DEFAULT_CONFIG;
 
 describe("wiki race completion", () => {
   it("highlights a finished lane immediately with Complete", () => {
@@ -16,7 +16,7 @@ describe("wiki race completion", () => {
       elapsedMs: 420,
     };
     const html = renderToStaticMarkup(
-      createElement(LaneCard, { lane, config, place: null }),
+      createElement(LaneCard, { lane, place: null }),
     );
     expect(html).toContain("lane-complete");
     expect(html).toContain("Complete");

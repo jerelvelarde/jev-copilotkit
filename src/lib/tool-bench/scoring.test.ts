@@ -69,10 +69,10 @@ describe("exact tool-call scoring and authored support suite", () => {
 describe("single-case arena contract", () => {
   it("uses one selected case per synchronized race", () => {
     expect(
-      arenaConfigSchema.parse({ mode: "sample", caseId: "order-details" }),
-    ).toEqual({ mode: "sample", caseId: "order-details" });
+      arenaConfigSchema.parse({ mode: "live", caseId: "earth-article" }),
+    ).toEqual({ mode: "live", caseId: "earth-article" });
     expect(() =>
-      arenaConfigSchema.parse({ mode: "sample", caseCount: 6 }),
+      arenaConfigSchema.parse({ mode: "live", caseCount: 6 }),
     ).toThrow();
     expect(() =>
       arenaConfigSchema.parse({ mode: "batch", caseId: "order-details" }),

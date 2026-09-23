@@ -10,7 +10,7 @@ import {
   LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
-import { articleUrl, type LaneState, type RaceConfig } from "../lib/race/types";
+import { articleUrl, type LaneState } from "../lib/race/types";
 import { arenaKeyName } from "../lib/tool-bench/lanes";
 
 export function formatTime(ms: number) {
@@ -31,15 +31,12 @@ const statusLabels: Record<LaneState["status"], string> = {
 
 export function LaneCard({
   lane,
-  config,
   place,
 }: {
   lane: LaneState;
-  config: RaceConfig;
   place: number | null;
 }) {
-  const sample = config.mode === "sample";
-  const unavailable = !sample && !lane.available;
+  const unavailable = !lane.available;
   const status = unavailable ? "unavailable" : lane.status;
   const active = status === "loading" || status === "thinking";
   const [inspection, setInspection] = useState<{
@@ -108,7 +105,7 @@ export function LaneCard({
       ) : (
         <div className="lane-scroll">
           <div className="article-toolbar">
-            <span>{sample ? "Sample article" : "Wikipedia"}</span>
+            <span>Wikipedia</span>
             <a
               href={lane.current.url}
               target="_blank"
@@ -191,11 +188,9 @@ export function LaneCard({
                   {decision.candidates} available links ·{" "}
                   {decision.method === "direct"
                     ? "Direct target link"
-                    : decision.method === "sample"
-                      ? "Scripted choice"
-                      : decision.method === "rank+choice"
-                        ? "Rank + choice"
-                        : "Model choice"}
+                    : decision.method === "rank+choice"
+                      ? "Rank + choice"
+                      : "Model choice"}
                 </p>
                 {decision.choices.length > 0 ? (
                   <div className="choice-list">
@@ -218,9 +213,7 @@ export function LaneCard({
                   <p className="decision-note">
                     {decision.method === "direct"
                       ? "The target is linked here. No model call was needed."
-                      : sample
-                        ? "Scripted sample choice; no model was called."
-                        : "This provider did not return a probability distribution."}
+                      : "This provider did not return a probability distribution."}
                   </p>
                 )}
                 <p className="decision-note">
@@ -230,7 +223,6 @@ export function LaneCard({
                   {decision.inputTokens !== null
                     ? ` · ${decision.inputTokens.toLocaleString()} input tokens`
                     : ""}
-                  {sample ? " · simulated" : ""}
                 </p>
               </div>
             </details>

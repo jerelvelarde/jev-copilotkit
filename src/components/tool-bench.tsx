@@ -119,8 +119,7 @@ function ToolArenaBoard({
   const laneStates = useMemo(
     () =>
       definitions.map(
-        (definition) =>
-          lanes[definition.id] ?? idleArenaLane(definition, false),
+        (definition) => lanes[definition.id] ?? idleArenaLane(definition),
       ),
     [definitions, lanes],
   );
@@ -172,7 +171,7 @@ function ToolArenaBoard({
   async function start() {
     if (activeRun.current) return;
     if (!caseId) {
-      setError("Choose the support request every agent should answer.");
+      setError("Choose the live lookup every agent should perform.");
       return;
     }
     if (!allReady) {
@@ -248,7 +247,7 @@ function ToolArenaBoard({
         </div>
         <div className="tb-controls">
           <label className="tb-case">
-            <span className="tb-sr-only">Support request</span>
+            <span className="tb-sr-only">Live lookup</span>
             <select
               disabled={running || cases.length === 0}
               value={run?.config.caseId ?? caseId}
@@ -324,7 +323,7 @@ function ToolArenaBoard({
       <div className="tb-statusline">
         <span>
           <Radio size={12} />
-          {`Live · ${participating}/${definitions.length} agents configured · tools run locally`}
+          {`Live · ${participating}/${definitions.length} agents configured · tools fetch public data`}
         </span>
         <span role="status" aria-live="polite">
           {running
@@ -373,7 +372,7 @@ function ToolArenaBoard({
               <span>
                 {participating === 0
                   ? "Configure an agent to start"
-                  : `${participating} agents · 1 request · local tools`}
+                  : `${participating} agents · 1 request · live tools`}
               </span>
             </div>
           )}
@@ -412,7 +411,7 @@ function LaneAgent({
   const cancelled = useRef(false);
 
   const idle = useMemo<ArenaLane>(
-    () => idleArenaLane(definition, false),
+    () => idleArenaLane(definition),
     [definition],
   );
   const base = useMemo<ArenaLane>(
@@ -470,7 +469,7 @@ function LaneAgent({
       // launchArena only calls this for a participating lane, so it starts
       // running regardless of whether the lane carries live credentials.
       const initialState: ArenaLane = {
-        ...idleArenaLane(definition, true),
+        ...idleArenaLane(definition),
         runId,
         caseId: config.caseId,
         prompt: prompt ?? "",

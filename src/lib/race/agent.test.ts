@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { lastValueFrom, toArray, tap } from "rxjs";
 import { EventType, type RunAgentInput } from "@ag-ui/core";
 import { WikiRaceAgent } from "./agent";
-import { DEFAULT_CONFIG } from "./types";
+import {
+  articleUrl,
+  DEFAULT_CONFIG,
+  DEFAULT_LANES,
+  type RaceDependencies,
+} from "./types";
 import { z } from "zod";
 import { InMemoryAgentRunner } from "@copilotkit/runtime/v2";
 
@@ -15,10 +20,37 @@ const input: RunAgentInput = {
   context: [],
   forwardedProps: { config: DEFAULT_CONFIG },
 };
+const pages = new Map([
+  ["Baseball", { id: 1, title: "Baseball", links: ["Earth"] }],
+  ["Earth", { id: 2, title: "Earth", links: ["Sun"] }],
+  ["Sun", { id: 3, title: "Sun", links: [] }],
+]);
+const dependencies: RaceDependencies = {
+  loadPage: async (title) => {
+    const page = pages.get(title);
+    if (!page) throw new Error(`Unknown test article: ${title}`);
+    return { ...page, extract: page.title, url: articleUrl(page.title) };
+  },
+  providers: Object.fromEntries(
+    DEFAULT_LANES.map((lane) => [
+      lane.id,
+      async () => ({
+        title: "Earth",
+        confidence: null,
+        choices: [],
+        modelMs: 1,
+        inputTokens: null,
+        modelCalls: 1,
+        method: "choice" as const,
+      }),
+    ]),
+  ),
+};
+const createAgent = () => new WikiRaceAgent(dependencies);
 describe("CopilotKit race agent", () => {
-  it("streams a whole sample race with ordered AG-UI lifecycle and shared state", async () => {
+  it("streams a whole race with ordered AG-UI lifecycle and shared state", async () => {
     const events = await lastValueFrom(
-      new WikiRaceAgent().run(input).pipe(toArray()),
+      createAgent().run(input).pipe(toArray()),
     );
     expect(events[0].type).toBe(EventType.RUN_STARTED);
     expect(events.at(-1)?.type).toBe(EventType.RUN_FINISHED);
@@ -39,18 +71,13 @@ describe("CopilotKit race agent", () => {
       })
       .parse(last.snapshot);
     expect(state.status).toBe("complete");
-    expect(state.config.mode).toBe("sample");
+    expect(state.config.mode).toBe("live");
     expect(state.lanes.every((l) => l.status === "finished")).toBe(true);
-    expect(state.lanes[0].path).toEqual([
-      "Baseball",
-      "United States",
-      "Earth",
-      "Sun",
-    ]);
+    expect(state.lanes[0].path).toEqual(["Baseball", "Earth", "Sun"]);
   }, 10_000);
   it("reports invalid input as a run error", async () => {
     const events = await lastValueFrom(
-      new WikiRaceAgent()
+      createAgent()
         .run({
           ...input,
           forwardedProps: { config: { ...DEFAULT_CONFIG, maxHops: 100 } },
@@ -64,7 +91,7 @@ describe("CopilotKit race agent", () => {
   });
   it("stops through the actual CopilotKit runner while the agent is active", async () => {
     const runner = new InMemoryAgentRunner();
-    const agent = new WikiRaceAgent();
+    const agent = createAgent();
     const threadId = crypto.randomUUID();
     const run = { ...input, threadId, runId: crypto.randomUUID() };
     let stopRequested = false;
@@ -87,7 +114,7 @@ describe("CopilotKit race agent", () => {
     ).toMatchObject({ status: "cancelled", runId: run.runId });
   }, 3000);
   it("remembers Stop before the run observable starts", async () => {
-    const agent = new WikiRaceAgent();
+    const agent = createAgent();
     agent.abortRun();
     const events = await lastValueFrom(agent.run(input).pipe(toArray()));
     expect(

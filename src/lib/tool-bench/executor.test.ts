@@ -1,152 +1,84 @@
-import { describe, expect, it } from "vitest";
-import { abortableDelay, executeToolCall } from "./executor";
-import { TOOL_REGISTRY } from "./tools";
-import type { ToolCall } from "./types";
+import { describe, expect, it, vi } from "vitest";
+import { executeToolCall } from "./executor";
 
-const valid: Record<string, ToolCall> = {
-  lookup_order: { tool: "lookup_order", arguments: { order_id: "ORD-1042" } },
-  track_shipment: {
-    tool: "track_shipment",
-    arguments: { order_id: "ORD-1089" },
-  },
-  refund_payment: {
-    tool: "refund_payment",
-    arguments: { payment_id: "PAY-502", reason: "duplicate" },
-  },
-  cancel_subscription: {
-    tool: "cancel_subscription",
-    arguments: { subscription_id: "SUB-310", timing: "period_end" },
-  },
-  create_ticket: {
-    tool: "create_ticket",
-    arguments: { customer_id: "CUS-63", category: "technical" },
-  },
-  escalate_to_human: {
-    tool: "escalate_to_human",
-    arguments: { customer_id: "CUS-18", priority: "urgent" },
-  },
-};
-
-describe("deterministic local tool execution", () => {
-  it("executes lookup_order into a typed prepared result", async () => {
-    const result = await executeToolCall(
-      { tool: "lookup_order", arguments: { order_id: "ORD-1042" } },
-      new AbortController().signal,
-      0,
+const signal = new AbortController().signal;
+describe("live read-only tool execution", () => {
+  it("fetches and validates current GitHub repository data", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        full_name: "vercel/next.js",
+        description: "The React Framework",
+        stargazers_count: 123,
+        language: "TypeScript",
+        html_url: "https://github.com/vercel/next.js",
+      }),
     );
-    expect(result).toEqual({
-      tool: "lookup_order",
-      arguments: { order_id: "ORD-1042" },
-      result: {
-        kind: "order",
-        orderId: "ORD-1042",
-        status: "Delivered",
-        items: 2,
-        total: "$84.00",
-      },
-    });
-  });
-
-  it.each([
-    [{ tool: "invented", arguments: {} }, "Unknown tool"],
-    [
-      { tool: "lookup_order", arguments: { order_id: 42 } },
-      "Invalid arguments",
-    ],
-    [{ tool: "lookup_order", arguments: {} }, "Invalid arguments"],
-    [
-      { tool: "lookup_order", arguments: { order_id: "ORD-1", extra: "x" } },
-      "Invalid arguments",
-    ],
-    [
-      {
-        tool: "refund_payment",
-        arguments: { payment_id: "P", reason: "nope" },
-      },
-      "Invalid arguments",
-    ],
-  ])("rejects an unsafe call", async (call, message) => {
-    await expect(
-      executeToolCall(call, new AbortController().signal, 0),
-    ).rejects.toThrow(message);
-  });
-
-  it("renders a distinct typed result for every registered tool", async () => {
-    for (const tool of TOOL_REGISTRY) {
-      const call = valid[tool.name];
-      expect(call, `missing fixture call for ${tool.name}`).toBeDefined();
-      const execution = await executeToolCall(
-        call,
-        new AbortController().signal,
-        0,
-      );
-      expect(execution.arguments).toEqual(call.arguments);
-      expect(typeof execution.result.kind).toBe("string");
-    }
-    expect(
-      new Set(
-        await Promise.all(
-          TOOL_REGISTRY.map(
-            async (tool) =>
-              (
-                await executeToolCall(
-                  valid[tool.name],
-                  new AbortController().signal,
-                  0,
-                )
-              ).result.kind,
-          ),
-        ),
-      ).size,
-    ).toBe(TOOL_REGISTRY.length);
-  });
-
-  it("stops before producing a result when the parent signal aborts", async () => {
-    const controller = new AbortController();
-    const pending = executeToolCall(
-      valid.lookup_order,
-      controller.signal,
-      5_000,
-    );
-    controller.abort(new Error("Stopped by you."));
-    await expect(pending).rejects.toThrow("Stopped by you.");
-  });
-
-  it("never mutates the caller's argument object", async () => {
-    const call: ToolCall = {
-      tool: "lookup_order",
-      arguments: { order_id: "ORD-1042" },
+    const call = {
+      tool: "get_github_repository",
+      arguments: { repository: "vercel/next.js" },
     };
+    const execution = await executeToolCall(call, signal, fetcher);
+    expect(fetcher.mock.calls[0][0]).toBe(
+      "https://api.github.com/repos/vercel/next.js",
+    );
+    expect(execution.result).toMatchObject({ kind: "repository", stars: 123 });
+    expect(execution.arguments).not.toBe(call.arguments);
+  });
+  it("fetches a real release endpoint", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        tag_name: "v1",
+        name: "Release 1",
+        published_at: "2026-01-01T00:00:00Z",
+        html_url: "https://github.com/cli/cli/releases/tag/v1",
+      }),
+    );
     const execution = await executeToolCall(
-      call,
-      new AbortController().signal,
-      0,
+      {
+        tool: "get_github_latest_release",
+        arguments: { repository: "cli/cli" },
+      },
+      signal,
+      fetcher,
     );
-    execution.arguments.order_id = "tampered";
-    expect(call.arguments.order_id).toBe("ORD-1042");
-  });
-});
-
-describe("abortableDelay", () => {
-  it("rejects with the abort reason and leaves no pending timer", async () => {
-    const controller = new AbortController();
-    const reason = new Error("Stopped by you.");
-    const pending = abortableDelay(60_000, controller.signal);
-    controller.abort(reason);
-    await expect(pending).rejects.toBe(reason);
-  });
-
-  it("rejects immediately when already aborted", async () => {
-    const controller = new AbortController();
-    controller.abort(new Error("Already stopped."));
-    await expect(abortableDelay(5, controller.signal)).rejects.toThrow(
-      "Already stopped.",
+    expect(fetcher.mock.calls[0][0]).toBe(
+      "https://api.github.com/repos/cli/cli/releases/latest",
     );
+    expect(execution.result).toMatchObject({ kind: "release", tag: "v1" });
   });
-
-  it("resolves after the delay", async () => {
+  it("rejects unsafe calls and upstream failures", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response("", { status: 429 }));
     await expect(
-      abortableDelay(0, new AbortController().signal),
-    ).resolves.toBeUndefined();
+      executeToolCall(
+        { tool: "get_github_repository", arguments: { repository: "../bad" } },
+        signal,
+        fetcher,
+      ),
+    ).rejects.toThrow("Invalid arguments");
+    await expect(
+      executeToolCall({ tool: "invented", arguments: {} }, signal, fetcher),
+    ).rejects.toThrow("Unknown tool");
+    await expect(
+      executeToolCall(
+        { tool: "get_github_repository", arguments: { repository: "cli/cli" } },
+        signal,
+        fetcher,
+      ),
+    ).rejects.toThrow("HTTP 429");
+  });
+  it("honors cancellation before a request", async () => {
+    const controller = new AbortController();
+    controller.abort(new Error("Stopped"));
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(
+      executeToolCall(
+        { tool: "get_github_repository", arguments: { repository: "cli/cli" } },
+        controller.signal,
+        fetcher,
+      ),
+    ).rejects.toThrow("Stopped");
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

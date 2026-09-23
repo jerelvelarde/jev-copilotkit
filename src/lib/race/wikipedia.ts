@@ -38,14 +38,20 @@ export async function loadWikipediaPage(
   const url = `https://en.wikipedia.org/w/rest.php/v1/page/${encodeURIComponent(title.replaceAll(" ", "_"))}/with_html`;
   let response: Response;
   for (let attempt = 0; ; attempt++) {
-    response = await fetcher(url, {
-      signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
-      headers: {
-        "User-Agent":
-          process.env.WIKIPEDIA_USER_AGENT ||
-          "JevCopilotKitWikiRace/0.1 (https://github.com/jerelvelarde/jev-copilotkit)",
-      },
-    });
+    try {
+      response = await fetcher(url, {
+        signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
+        headers: {
+          "User-Agent":
+            process.env.WIKIPEDIA_USER_AGENT ||
+            "JevCopilotKitWikiRace/0.1 (https://github.com/jerelvelarde/jev-copilotkit)",
+        },
+      });
+    } catch (error) {
+      if (signal.aborted || attempt >= 2) throw error;
+      await delay(250 * (attempt + 1), undefined, { signal });
+      continue;
+    }
     if (response.status !== 429 && response.status !== 503) break;
     if (attempt >= 5) break;
     const retryAfter = Number(response.headers.get("Retry-After"));

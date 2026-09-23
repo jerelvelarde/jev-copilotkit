@@ -1,101 +1,44 @@
 "use client";
 
-import {
-  Boxes,
-  Package,
-  Receipt,
-  ShieldAlert,
-  Ticket,
-  UserRound,
-} from "lucide-react";
+import { BookOpen, GitFork, Tag } from "lucide-react";
 import type { ToolResult } from "../lib/tool-bench/executor";
 import type { ToolExecution } from "../lib/tool-bench/types";
 
-type Prepared = {
-  icon: typeof Boxes;
-  title: string;
-  rows: { label: string; value: string }[];
-};
-
-const timingLabels = { now: "Immediately", period_end: "End of paid period" };
-const reasonLabels = {
-  duplicate: "Duplicate charge",
-  not_received: "Not received",
-  damaged: "Damaged on arrival",
-};
-
-/**
- * Every label is application code and every value is escaped by React. A
- * provider can influence which tool runs, never what this card renders.
- */
-function prepare(result: ToolResult): Prepared {
+function prepare(result: ToolResult) {
   switch (result.kind) {
-    case "order":
+    case "article":
       return {
-        icon: Boxes,
-        title: "Order details",
+        icon: BookOpen,
+        title: "Wikipedia article",
+        url: result.url,
         rows: [
-          { label: "Order", value: result.orderId },
-          { label: "Delivery", value: result.status },
-          { label: "Items", value: String(result.items) },
-          { label: "Total", value: result.total },
+          { label: "Title", value: result.title },
+          { label: "Introduction", value: result.extract },
+          { label: "Article links", value: String(result.linkCount) },
         ],
       };
-    case "shipment":
+    case "repository":
       return {
-        icon: Package,
-        title: "Shipment status",
+        icon: GitFork,
+        title: "GitHub repository",
+        url: result.url,
         rows: [
-          { label: "Order", value: result.orderId },
-          { label: "Carrier", value: result.carrier },
-          { label: "Status", value: result.status },
-          { label: "Arrives", value: result.eta },
+          { label: "Repository", value: result.name },
+          { label: "Description", value: result.description },
+          { label: "Stars", value: result.stars.toLocaleString() },
+          { label: "Language", value: result.language },
         ],
       };
-    case "refund":
+    case "release":
       return {
-        icon: Receipt,
-        title: "Refund",
+        icon: Tag,
+        title: "Latest GitHub release",
+        url: result.url,
         rows: [
-          { label: "Payment", value: result.paymentId },
-          { label: "Reason", value: reasonLabels[result.reason] },
-          { label: "Status", value: result.status },
-          { label: "Amount", value: result.amount },
-        ],
-      };
-    case "cancellation":
-      return {
-        icon: ShieldAlert,
-        title: "Subscription",
-        rows: [
-          { label: "Subscription", value: result.subscriptionId },
-          { label: "Timing", value: timingLabels[result.timing] },
-          { label: "Status", value: result.status },
-          { label: "Effective", value: result.effective },
-        ],
-      };
-    case "ticket":
-      return {
-        icon: Ticket,
-        title: "Support ticket",
-        rows: [
-          { label: "Ticket", value: result.ticketId },
-          { label: "Customer", value: result.customerId },
-          { label: "Category", value: result.category },
-          { label: "Status", value: result.status },
-          { label: "Queue", value: result.queue },
-        ],
-      };
-    case "escalation":
-      return {
-        icon: UserRound,
-        title: "Human escalation",
-        rows: [
-          { label: "Customer", value: result.customerId },
-          { label: "Priority", value: result.priority },
-          { label: "Status", value: result.status },
-          { label: "Queue", value: result.queue },
-          { label: "Typical wait", value: `${result.waitMinutes} min` },
+          { label: "Repository", value: result.repository },
+          { label: "Release", value: result.name },
+          { label: "Tag", value: result.tag },
+          { label: "Published", value: result.publishedAt },
         ],
       };
   }
@@ -103,8 +46,8 @@ function prepare(result: ToolResult): Prepared {
 
 export function ToolResultCard({ execution }: { execution: ToolExecution }) {
   const result = execution.result as ToolResult;
-  // Defensive: an unexpected payload shows nothing rather than a guessed card.
-  if (typeof result?.kind !== "string") return null;
+  if (!result || !["article", "repository", "release"].includes(result.kind))
+    return null;
   const prepared = prepare(result);
   const Icon = prepared.icon;
   return (
@@ -112,7 +55,14 @@ export function ToolResultCard({ execution }: { execution: ToolExecution }) {
       <div className="tb-result-title">
         <Icon size={13} aria-hidden="true" />
         <span>{prepared.title}</span>
-        <span className="tb-result-source">local tool result</span>
+        <a
+          className="tb-result-source"
+          href={prepared.url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          live source ↗
+        </a>
       </div>
       <dl className="tb-result-rows">
         {prepared.rows.map((row) => (

@@ -128,15 +128,9 @@ export function withRenderCommit<State extends ArenaLaneState>(
   };
 }
 
-/**
- * Participation depends on the mode: Sample races every lane, Live only the
- * configured ones. A Sample lane must never be labelled as needing a key.
- */
-export function idleArenaLane(
-  definition: ArenaLaneDefinition,
-  sample: boolean,
-): ArenaLane {
-  const joins = sample || definition.available;
+/** An unconfigured lane stays visible but never participates. */
+export function idleArenaLane(definition: ArenaLaneDefinition): ArenaLane {
+  const joins = definition.available;
   return {
     ...initialLaneState(definition),
     agentId: definition.agentId,
@@ -154,12 +148,11 @@ export function createArenaRun(
 ): ArenaRun {
   const config = arenaConfigSchema.parse({ mode, caseId });
   const runId = options.runId ?? crypto.randomUUID();
-  const sample = config.mode === "sample";
   return {
     runId,
     config,
     lanes: definitions.map((definition) => {
-      const lane = idleArenaLane(definition, sample);
+      const lane = idleArenaLane(definition);
       return {
         ...lane,
         runId,
@@ -181,10 +174,7 @@ export function launchArena(
 ): Promise<PromiseSettledResult<void>[]> {
   return Promise.allSettled(
     controllers
-      .filter(
-        ({ definition }) =>
-          props.config.mode === "sample" || definition.available,
-      )
+      .filter(({ definition }) => definition.available)
       .map((controller) => controller.run(props)),
   );
 }
