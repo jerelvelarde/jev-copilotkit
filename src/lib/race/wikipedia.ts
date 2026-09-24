@@ -37,7 +37,10 @@ export async function loadWikipediaPage(
 ): Promise<Article> {
   const url = `https://en.wikipedia.org/w/rest.php/v1/page/${encodeURIComponent(title.replaceAll(" ", "_"))}/with_html`;
   let response: Response;
-  for (let attempt = 0; ; attempt++) {
+  let body: unknown;
+  let transportRetries = 0;
+  let rateRetries = 0;
+  for (;;) {
     try {
       response = await fetcher(url, {
         signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
@@ -47,18 +50,23 @@ export async function loadWikipediaPage(
             "JevCopilotKitWikiRace/0.1 (https://github.com/jerelvelarde/jev-copilotkit)",
         },
       });
+      // The fetch promise may resolve before the large HTML body has arrived.
+      // Keep body consumption inside the retry boundary as well.
+      if (response.ok) body = await response.json();
     } catch (error) {
-      if (signal.aborted || attempt >= 2) throw error;
-      await delay(250 * (attempt + 1), undefined, { signal });
+      if (signal.aborted || transportRetries >= 2) throw error;
+      transportRetries++;
+      await delay(250 * transportRetries, undefined, { signal });
       continue;
     }
     if (response.status !== 429 && response.status !== 503) break;
-    if (attempt >= 5) break;
+    if (rateRetries >= 5) break;
     const retryAfter = Number(response.headers.get("Retry-After"));
     const waitMs =
       response.headers.has("Retry-After") && Number.isFinite(retryAfter)
         ? Math.max(0, Math.min(4000, retryAfter * 1000))
-        : 700 * 2 ** attempt;
+        : 700 * 2 ** rateRetries;
+    rateRetries++;
     await delay(waitMs, undefined, { signal });
   }
   if (response.status === 404)
@@ -70,7 +78,7 @@ export async function loadWikipediaPage(
       `Wikipedia returned HTTP ${response.status}. Please retry.`,
     );
 
-  const page = pageSchema.parse(await response.json());
+  const page = pageSchema.parse(body);
   const $ = load(page.html);
   const intro = $("section p")
     .map((_, element) => $(element).text().trim())

@@ -73,6 +73,42 @@ describe("Wikipedia retrieval", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it("retries a timeout while reading the article body", async () => {
+    const slowBody = Response.json(page);
+    vi.spyOn(slowBody, "json").mockRejectedValueOnce(
+      new DOMException("Timed out", "TimeoutError"),
+    );
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(slowBody)
+      .mockResolvedValueOnce(Response.json(page));
+    expect((await loadWikipediaPage("Alias", signal, fetcher)).title).toBe(
+      "Canonical",
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("still retries a body timeout after a rate limit", async () => {
+    const slowBody = Response.json(page);
+    vi.spyOn(slowBody, "json").mockRejectedValueOnce(
+      new DOMException("Timed out", "TimeoutError"),
+    );
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response("", { status: 429, headers: { "Retry-After": "0" } }),
+      )
+      .mockResolvedValueOnce(
+        new Response("", { status: 429, headers: { "Retry-After": "0" } }),
+      )
+      .mockResolvedValueOnce(slowBody)
+      .mockResolvedValueOnce(Response.json(page));
+    expect((await loadWikipediaPage("Alias", signal, fetcher)).title).toBe(
+      "Canonical",
+    );
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  });
+
   it("stops retrying after the bounded rate-limit budget", async () => {
     const fetcher = vi
       .fn<typeof fetch>()

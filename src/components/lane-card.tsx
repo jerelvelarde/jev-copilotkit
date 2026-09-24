@@ -80,6 +80,9 @@ export function LaneCard({
             {lane.hops.length} {lane.hops.length === 1 ? "hop" : "hops"}
           </span>
           <span>{formatTime(lane.modelMs)} model</span>
+          {lane.fetchMs > 0 && (
+            <span>{formatTime(lane.fetchMs)} Wikipedia</span>
+          )}
           <span className="lane-elapsed">
             {formatTime(lane.elapsedMs)} elapsed
           </span>
@@ -189,7 +192,7 @@ export function LaneCard({
                   {decision.method === "direct"
                     ? "Direct target link"
                     : decision.method === "rank+choice"
-                      ? "Rank + choice"
+                      ? "Choice shortlist"
                       : "Model choice"}
                 </p>
                 {decision.choices.length > 0 ? (

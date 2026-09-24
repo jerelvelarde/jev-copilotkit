@@ -60,32 +60,30 @@ describe("Jev integration contract", () => {
       "TYPESAFE_API_KEY",
     );
   });
-  it("scores every candidate before a bounded final choice", async () => {
-    let scored = 0;
-    let chosen = 0;
+  it("shortlists every candidate with bounded Choice calls", async () => {
+    const groupSizes: number[] = [];
     const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
       const body = JSON.parse(String(init?.body));
-      if (body.questions.next) {
-        chosen = Object.keys(body.questions.next.criteria).length;
-        return Response.json({
-          answers: {
-            next: {
-              type: "choice",
-              choice: "link_0",
-              confidence: 0.5,
-              probabilities: { link_0: 1 },
-            },
-          },
-        });
-      }
-      scored += Object.keys(body.questions).length;
+      expect(Object.keys(body.questions)).toEqual(["next"]);
+      const criteria = body.questions.next.criteria as Record<string, string>;
+      const keys = Object.keys(criteria);
+      groupSizes.push(keys.length);
       return Response.json({
-        answers: Object.fromEntries(
-          Object.keys(body.questions).map((id) => [
-            id,
-            { type: "noul", noul: 0.5 },
-          ]),
-        ),
+        answers: {
+          next: {
+            type: "choice",
+            choice: keys.find((id) => criteria[id] === "Page 299") ?? keys[0],
+            confidence: 0.9,
+            probabilities: Object.fromEntries(
+              keys.map((id, index) => [
+                id,
+                criteria[id] === "Page 299"
+                  ? 0.9
+                  : (keys.length - index) / 1000,
+              ]),
+            ),
+          },
+        },
       });
     });
     const result = await createJevProvider(
@@ -99,11 +97,54 @@ describe("Jev integration contract", () => {
       },
       signal,
     );
-    expect(scored).toBe(300);
-    expect(chosen).toBe(255);
+    expect(groupSizes).toEqual([255, 45, 64]);
+    expect(groupSizes.every((size) => size <= 255)).toBe(true);
+    expect(result.title).toBe("Page 299");
     expect(result.method).toBe("rank+choice");
-    expect(result.modelCalls).toBe(4);
+    expect(result.modelCalls).toBe(3);
     expect(result.inputTokens).toBeNull();
+  });
+  it("keeps a late candidate eligible across multiple shortlist rounds", async () => {
+    const groups: string[][] = [];
+    const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      const criteria = body.questions.next.criteria as Record<string, string>;
+      const entries = Object.entries(criteria);
+      groups.push(entries.map(([, title]) => title));
+      const selected = entries.find(([, title]) => title === "Page 4999")?.[0];
+      return Response.json({
+        answers: {
+          next: {
+            type: "choice",
+            choice: selected ?? entries[0][0],
+            confidence: 0.9,
+            probabilities: Object.fromEntries(
+              entries.map(([id, title], index) => [
+                id,
+                title === "Page 4999" ? 0.9 : (entries.length - index) / 1000,
+              ]),
+            ),
+          },
+        },
+      });
+    });
+    const result = await createJevProvider(
+      "test-key",
+      undefined,
+      fetcher,
+    )(
+      {
+        ...context,
+        candidates: Array.from({ length: 5000 }, (_, i) => `Page ${i}`),
+      },
+      signal,
+    );
+    expect(groups.slice(0, 20).flat()).toEqual(
+      Array.from({ length: 5000 }, (_, i) => `Page ${i}`),
+    );
+    expect(groups.every((group) => group.length <= 255)).toBe(true);
+    expect(result.title).toBe("Page 4999");
+    expect(result.modelCalls).toBe(24);
   });
 });
 describe("comparison provider", () => {

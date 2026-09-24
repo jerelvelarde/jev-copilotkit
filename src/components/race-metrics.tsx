@@ -130,10 +130,11 @@ export function RaceTimeline({ race }: { race: RaceState }) {
               the lanes within each race.
             </p>
             <p>
-              Jev chooses among up to 255 links, ranking larger sets in batches
-              first. Baselines receive the full candidate list within the page
-              limit. A direct target link ends a lane without a model call.
-              Timing bars are scaled to the longest model time in this race.
+              Jev chooses among up to 255 links per request. Larger sets pass
+              through bounded Choice shortlists before the final choice.
+              Baselines receive the full candidate list within the page limit. A
+              direct target link ends a lane without a model call. Timing bars
+              are scaled to the longest model time in this race.
             </p>
             <p>
               Live articles are from{" "}
