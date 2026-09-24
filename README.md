@@ -4,7 +4,7 @@ A side-by-side Wikipedia link race inspired by the [Wikiracing segment in Matthe
 
 Choose a starting article and a destination. Jev and optional comparison models choose links, and CopilotKit streams their paths into a live race interface.
 
-A second demo, the **[Tool-call arena](http://localhost:3000/tool-bench)**, races four CopilotKit agents through one live lookup: each picks a tool, fetches current public data, and renders the result. Both demos use the same configured providers and the same dark, four-pane arena layout.
+A second demo, the **[Tool-call arena](http://localhost:3000/tool-bench)**, races four CopilotKit agents through one live lookup: each picks a tool, fetches current public data, and renders the result through the same A2UI schema. Both demos use the same configured providers and the same dark, four-pane arena layout.
 
 ## Run locally
 
@@ -58,6 +58,7 @@ Main files:
 - [Live tool executor](src/lib/tool-bench/executor.ts): strict argument schemas and read-only Wikipedia/GitHub API requests.
 - [Tool benchmark adapters](src/lib/tool-bench/providers.ts): typed Jev questions and direct provider function calls.
 - [Labeled live lookups](src/lib/tool-bench/cases.ts): the versioned `public-live-v1` suite.
+- [Shared A2UI surface](src/lib/tool-bench/a2ui-surface.ts): one validated component tree and live data bindings for all four lanes.
 
 ## Tool-call arena
 
@@ -66,9 +67,9 @@ Open `/tool-bench`, pick one live lookup, and press **Start the race**. Four Cop
 1. Shows the identical user message.
 2. Chooses a tool and its arguments.
 3. Runs that tool through the shared local registry.
-4. Renders the typed tool result in a prepared card.
+4. Renders the typed tool result through the same CopilotKit A2UI component schema.
 
-The three tools retrieve a Wikipedia article, GitHub repository metadata, or the latest published GitHub release through the [MediaWiki REST API](https://www.mediawiki.org/wiki/API:REST_API/Reference) and [GitHub REST API](https://docs.github.com/en/rest). Every selected call makes a real, read-only HTTP request; the result card links to its source. Public API latency and rate limits can affect the tool phase. A provider controls the selected tool and arguments, while the app validates the call and renders the returned data.
+The three tools retrieve a Wikipedia article, GitHub repository metadata, or the latest published GitHub release through the [MediaWiki REST API](https://www.mediawiki.org/wiki/API:REST_API/Reference) and [GitHub REST API](https://docs.github.com/en/rest). Every selected call makes a real, read-only HTTP request. Public API latency and rate limits can affect the tool phase. A provider controls the selected tool and arguments, while the app validates the call and binds the returned data to A2UI. Every lane starts in A2UI view and can switch to its original fixed React card for comparison. This is fixed-schema A2UI with live data, not a second model generating arbitrary layouts; that keeps the UI work comparable across agents.
 
 Switch between **UI** and **Graph** without restarting. The graph draws one `Prompt → Decision → Tool → UI` trace per agent on a shared time axis, with each node repeating its phase, status, and duration as text so it stays readable without color. Each panel highlights **Complete** when it finishes; the fastest exact-call winner appears after all lanes settle. **Stop** aborts every running agent and keeps the completed events visible.
 
@@ -85,6 +86,7 @@ Jev selects the tool and candidate-bound argument fields in one request using ty
 
 - **Tool accuracy** checks the selected tool name; **exact-call accuracy** also requires every argument key and value, with no extra or missing arguments.
 - After every lane settles, the summary names the fastest **exact** lane as winner and reports accuracy separately. A faster incorrect lane wins nothing. Ties list every tied agent.
+- The results also identify the fastest correct **tool decision**, separating model selection time from public API latency.
 - A provider failure, an unknown tool, or invalid arguments ends that lane as a visible error with no fabricated result. One failing lane never stops the other three.
 
 This is a small, curated demonstration. It is useful for inspecting behavior and recording a demo. A single request on this suite does not establish general model performance.

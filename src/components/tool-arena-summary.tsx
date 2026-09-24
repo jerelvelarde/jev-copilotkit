@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronDown, Gauge, Info, Target, Trophy } from "lucide-react";
+import { ChevronDown, Gauge, Info, Target, Trophy, Zap } from "lucide-react";
 import type { ArenaLaneState } from "../lib/tool-bench/types";
 import { benchTime } from "./tool-bench-metrics";
 
 export type ArenaSummary = {
   highestAccuracy: string[];
   fastestExact: string[];
+  fastestDecision: string[];
   completed: number;
   available: number;
 };
@@ -37,6 +38,10 @@ export function summarizeArena(lanes: ArenaLaneState[]): ArenaSummary {
     Infinity,
     ...exact.map((lane) => lane.timings.totalMs),
   );
+  const fastestDecisionMs = Math.min(
+    Infinity,
+    ...exact.map((lane) => lane.timings.decisionMs),
+  );
   return {
     highestAccuracy:
       best > 0
@@ -46,6 +51,9 @@ export function summarizeArena(lanes: ArenaLaneState[]): ArenaSummary {
         : [],
     fastestExact: exact
       .filter((lane) => lane.timings.totalMs === fastest)
+      .map((lane) => lane.name),
+    fastestDecision: exact
+      .filter((lane) => lane.timings.decisionMs === fastestDecisionMs)
       .map((lane) => lane.name),
     completed: completed.length,
     available: available.length,
@@ -90,6 +98,9 @@ export function ToolArenaSummary({
   );
   const fastestMs = exactLanes.length
     ? Math.min(...exactLanes.map((lane) => lane.timings.totalMs))
+    : null;
+  const fastestDecisionMs = exactLanes.length
+    ? Math.min(...exactLanes.map((lane) => lane.timings.decisionMs))
     : null;
   const winnerId = exactLanes.find(
     (lane) => lane.timings.totalMs === fastestMs,
@@ -136,6 +147,16 @@ export function ToolArenaSummary({
               names={summary.fastestExact}
               detail={
                 fastestMs === null ? null : `${benchTime(fastestMs)} total`
+              }
+            />
+            <Outcome
+              icon={Zap}
+              title="Fastest tool decision"
+              names={summary.fastestDecision}
+              detail={
+                fastestDecisionMs === null
+                  ? null
+                  : `${benchTime(fastestDecisionMs)} decision`
               }
             />
           </div>

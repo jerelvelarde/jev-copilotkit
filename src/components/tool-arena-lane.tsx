@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { ArenaLaneState } from "../lib/tool-bench/types";
 import { benchTime } from "./tool-bench-metrics";
-import { ToolResultCard } from "./tool-result-card";
+import { ArenaA2UIComparison } from "./arena-a2ui-comparison";
 
 const statusLabels: Record<ArenaLaneState["status"], string> = {
   idle: "Ready",
@@ -110,7 +110,9 @@ export function ToolArenaLane({ lane }: { lane: ArenaLaneState }) {
             </div>
           )}
 
-          {lane.execution && <ToolResultCard execution={lane.execution} />}
+          {lane.execution && (
+            <ArenaA2UIComparison key={lane.runId} lane={lane} />
+          )}
 
           {lane.provider === "jev" && choices.length > 0 && (
             <details className="tb-choices">

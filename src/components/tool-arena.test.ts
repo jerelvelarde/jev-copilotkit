@@ -442,15 +442,15 @@ const markup = (lane: ArenaLane) =>
   renderToStaticMarkup(createElement(ToolArenaLane, { lane }));
 
 describe("agent conversation lane", () => {
-  it("shows the shared request, the call, the prepared result and both timers", () => {
+  it("shows the shared request, tool call, A2UI surface, and both timers", () => {
     const html = markup(completedJev());
     expect(html).toContain("tb-lane-complete");
     expect(html).toContain("Complete");
     expect(html).toContain("Get the current Wikipedia introduction for Earth.");
     expect(html).toContain("get_wikipedia_article");
     expect(html).toContain("Earth");
-    expect(html).toContain("Planet Earth introduction");
-    expect(html).toContain("42");
+    expect(html).toContain("A2UI result");
+    expect(html).toContain("Rendering A2UI surface");
     expect(html).toContain("Exact match");
     expect(html).toContain("350 ms");
     expect(html).toContain("180 ms");
@@ -505,7 +505,7 @@ describe("agent conversation lane", () => {
     );
     expect(html).toContain("Tool mismatch");
     expect(html).not.toContain("Exact match");
-    expect(html).toContain("GitHub CLI");
+    expect(html).toContain("A2UI result");
   });
 
   it("never renders a fabricated result for a failed lane", () => {
@@ -686,6 +686,7 @@ describe("arena summary", () => {
     expect(summary).toEqual({
       highestAccuracy: ["jev", "haiku"],
       fastestExact: ["jev"],
+      fastestDecision: ["jev"],
       completed: 3,
       available: 4,
     });
@@ -702,8 +703,25 @@ describe("arena summary", () => {
     ).toEqual({
       highestAccuracy: ["jev", "gpt"],
       fastestExact: ["jev", "gpt"],
+      fastestDecision: ["jev", "gpt"],
       completed: 2,
       available: 3,
+    });
+  });
+
+  it("separates decision speed from tool and total latency", () => {
+    expect(
+      summarizeArena([
+        lane("jev", true, 900, {
+          timings: { decisionMs: 100, toolMs: 800, renderMs: 0, totalMs: 900 },
+        }),
+        lane("gpt", true, 400, {
+          timings: { decisionMs: 350, toolMs: 50, renderMs: 0, totalMs: 400 },
+        }),
+      ]),
+    ).toMatchObject({
+      fastestDecision: ["jev"],
+      fastestExact: ["gpt"],
     });
   });
 
@@ -715,12 +733,14 @@ describe("arena summary", () => {
     ).toEqual({
       highestAccuracy: [],
       fastestExact: [],
+      fastestDecision: [],
       completed: 0,
       available: 1,
     });
     expect(summarizeArena([])).toEqual({
       highestAccuracy: [],
       fastestExact: [],
+      fastestDecision: [],
       completed: 0,
       available: 0,
     });
@@ -737,6 +757,7 @@ describe("arena summary", () => {
     expect(html).toContain("400 ms");
     expect(html).toContain("Highest accuracy");
     expect(html).toContain("Fastest exact call");
+    expect(html).toContain("Fastest tool decision");
     expect(html).toContain("do not establish general model performance");
   });
 
